@@ -216,3 +216,24 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ── Project-specific ──
+
+# Project-local conda env
+/env/
+
+# Geospatial data — large binaries, re-derivable from sources
+inputs/raw/
+inputs/processed/
+outputs/
+*.tif
+*.tiff
+*.laz
+*.las
+*.copc.laz
+*.vrt
+*.aux.xml
+figures/*.png
+
+# Credentials (CDS API key)
+.cdsapirc
