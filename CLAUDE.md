@@ -110,23 +110,62 @@ Reclassify EnviroAtlas MULC to UMEP codes:
 
 ### 6. Baseline SOLWEIG run (`scripts/04_run_baseline.py`)
 
+**Real `thermal_comfort()` API** — takes a directory + filename convention, not individual paths:
+
 ```python
 from solweig_gpu import thermal_comfort
 
+# base_path must contain Building_DSM.tif, DEM.tif, Trees.tif, Landcover.tif
+# and is ALSO where outputs land (under base_path/output_folder/).
 thermal_comfort(
-    dsm='inputs/processed/dsm.tif',
-    dem='inputs/processed/dem.tif',
-    cdsm='inputs/processed/cdsm.tif',
-    landcover='inputs/processed/landcover.tif',
-    met='inputs/processed/era5_2024-07-23.csv',
+    base_path='inputs/processed/durham_baseline',
+    selected_date_str='2024-07-23',          # simulation date (YYYY-MM-DD)
+    building_dsm_filename='Building_DSM.tif',
+    dem_filename='DEM.tif',
+    trees_filename='Trees.tif',               # this is the CDSM — canopy heights above ground
+    landcover_filename='Landcover.tif',       # UMEP codes; see below
     tile_size=1400,
     overlap=100,
-    output_dir='outputs/baseline/',
-    utc_offset=-4,  # EDT
+    use_own_met=True,
+    own_met_file='inputs/processed/durham_baseline/ownmet_2024-07-23.txt',
+    save_tmrt=True,
 )
 ```
 
-Inspect: shade should be cool, parking lots should be hot, streets intermediate. Crop results to center 1×1 km.
+Key API facts to remember:
+- **No `output_dir` parameter.** Outputs are written to `base_path/output_folder/`; preprocessed intermediates to `base_path/processed_inputs/`. To keep baseline and scenario runs apart, give them **separate `base_path` directories**.
+- **No `utc_offset` parameter.** When using ERA5/WRF mode (`use_own_met=False`), `start_time`/`end_time` are in **UTC** and conversion to local is internal. In own-met mode, the met file's time columns define the clock.
+- **`Trees.tif`** is the package's name for the CDSM (canopy heights above ground, m, zero where no tree). Our Day-2 raster build pipeline should emit a file with this exact name.
+- **`Building_DSM.tif`** is buildings+terrain (i.e., the DSM — NOT terrain-only).
+- **Landcover is optional** (`landcover_filename=None` is allowed) but we want it set — SOLWEIG uses it for surface temperature and albedo. Bundled class definitions: `env/lib/python3.10/site-packages/solweig_gpu/landcoverclasses_2016a.txt`.
+
+**Own-met file format (UMEP 23-column, space-delimited, header row required):**
+
+```
+iy  id  it imin   Q*      QH      QE      Qs      Qf    Wind    RH     Td     press   rain    Kdn    snow    ldown   fcld    wuh     xsmd    lai_hr  Kdiff   Kdir    Wd
+```
+
+Columns: `iy`=year, `id`=day-of-year, `it`=hour, `imin`=minute. Use `-999.00` for unknown values. Minimum fields we need to populate from ERA5: `Wind` (10m, m/s), `RH` (%), `Td` (°C, 2m dewpoint-derived), `press` (kPa), `rain` (mm/h), `Kdn` (downwelling shortwave, W/m²), `ldown` (downwelling longwave, W/m²). The rest can stay `-999.00`.
+
+**Alternative ERA5 mode** (skips the conversion step):
+
+```python
+thermal_comfort(
+    base_path='inputs/processed/durham_baseline',
+    selected_date_str='2024-07-23',
+    use_own_met=False,
+    data_source_type='ERA5',
+    data_folder='inputs/raw/era5/',
+    start_time='2024-07-23 06:00:00',   # UTC
+    end_time='2024-07-23 23:00:00',     # UTC
+    # ... rasters as above
+    save_tmrt=True,
+)
+```
+
+Either works. Own-met gives more control and is easier to debug; ERA5 mode skips writing the UMEP-format text file.
+
+Inspect: shade should be cool, parking lots should be hot, streets intermediate. Crop results to center 1×1 km after the run.
 
 **Red flags:** 80°C everywhere, uniform patterns, negative Tmrt. Usual culprits: UTC offset wrong, met file misparsed, CDSM sign-flipped, feet↔meters.
 
@@ -146,7 +185,7 @@ planting_sites = planting_sites.clip(tile_bounds)
 # (mature shade tree approximation)
 ```
 
-Update land cover at those pixels to grass class (SOLWEIG combines CDSM + land cover for shade handling). Re-run `thermal_comfort()` with modified CDSM + land cover pointing at `outputs/scenario/`.
+Update land cover at those pixels to grass class (SOLWEIG combines CDSM + land cover for shade handling). Write the modified rasters into a **separate `base_path` directory** (e.g., `inputs/processed/durham_scenario/`) using the same canonical filenames (`Building_DSM.tif`, `DEM.tif`, `Trees.tif`, `Landcover.tif`). Re-run `thermal_comfort(base_path='inputs/processed/durham_scenario', ...)` with all other arguments identical to the baseline call — this keeps baseline and scenario outputs cleanly separated under each base_path's `output_folder/`.
 
 ### 8. Analysis and figures (`scripts/07_make_figures.py`)
 
