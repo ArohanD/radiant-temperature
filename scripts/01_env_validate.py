@@ -13,7 +13,10 @@ PKGS = [
     "pdal",
     "osgeo.gdal",
     "torch",
-    "cdsapi",
+    "xarray",
+    "zarr",
+    "icechunk",
+    "dynamical_catalog",
     "solweig_gpu",
 ]
 
