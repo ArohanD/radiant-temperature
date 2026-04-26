@@ -78,6 +78,26 @@
 
 ---
 
+## 2026-04-26 — Two scenarios instead of one (canopy-size assumption)
+
+**Problem:** The plan's `05_build_scenario.py` originally specified a single 3×3-pixel disk at 8 m canopy height per planted tree. Web research into Durham's actual program (City Tree Planting Program, 8,500 trees 2025–2028, dominant archetype Willow Oak / Red Maple) shows the assumption is internally inconsistent: 8 m height is a year-5–10 figure for those species, but a 3×3 (~9 m²) footprint is a year-1 sapling figure. NC Extension cites Willow Oak at 18–24 m mature with a 12–15 m crown (~110 m² footprint) and ~30 yr to 80% mature. Whatever single number we pick, a critic can argue we either understated or overstated.
+
+**Options weighed:**
+- **Single canopy at "year 5–10"** (5 m, 25 m²) — defensible for the next decade of Durham's plan but understates long-term value.
+- **Single canopy at "mature"** (12 m, 50 m²) — the Tmrt-reduction argument is strongest here, but 25 yr is a long horizon for a sprint headline; opens the "you're claiming credit for trees not even planted" critique.
+- **Run both** — twice the compute (~75 min vs ~38 min), but lets the headline communicate the canopy assumption explicitly as a range. More defensible at the cost of one extra SOLWEIG run.
+
+**Decision:** Run **both scenarios**. Stage 7 reports a range (`ΔTmrt at peak: X °C year-10 → Y °C mature`). The two scenarios share Building_DSM, DEM, Landcover (sans planting-site reclasses), and met file with the baseline; only Trees CDSM and Landcover diverge inside the planted disks.
+
+**Implementation:**
+- `05_build_scenario.py` parameterized over `SCENARIOS = {year10, mature}`; produces two folders `inputs/processed/{AOI_NAME}_scenario_{year10,mature}/`.
+- `06_run_scenario.py` discovers all `*_scenario_*` folders and fires SOLWEIG against each in sequence; idempotent (skips folders with an existing `output_folder/`).
+- `mature` capped at 12 m / 50 m² (not the literature's 18 m / 110 m²) to half-bake in soil-volume + pruning constraints typical of urban street trees, plus Durham's UFMP species-diversity rule (≤10% any species).
+
+**References:** [Durham City Tree Planting Program](https://www.durhamnc.gov/4330/City-Tree-Planting-Program); [2018 UFMP](https://www.durhamnc.gov/DocumentCenter/View/34156/Urban-Forest-Management-Plan); [Quercus phellos — NC Extension](https://plants.ces.ncsu.edu/plants/quercus-phellos/); see `notes/scenario_design.md` for the full data + reasoning.
+
+---
+
 A few notes on form:
 - Each entry: Problem / Options / Tradeoffs / Decision (sometimes Consequences, References when worth it). Don't be religious about the headers — drop ones that aren't load-bearing for a given decision.
 - Keep this in notes/ (already tracked in git per the repo layout in CLAUDE.md), not in the gitignored inputs/ or outputs/. It's project history, not data.

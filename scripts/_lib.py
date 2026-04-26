@@ -56,7 +56,7 @@ def fetch_hrrr_point(lat: float, lon: float, local_date: str, utc_offset: int) -
     UMEP own-met file. utc_offset is hours-from-UTC for the local date (e.g. -4 = EDT).
     """
     import dynamical_catalog
-    dynamical_catalog.identify("radiant-temperature/0.1 (arohandutt@live.com)")
+    dynamical_catalog.identify("radiant-temperature/0.1")
 
     print(f"  opening HRRR analysis (icechunk, anon S3) …")
     ds = dynamical_catalog.open("noaa-hrrr-analysis")

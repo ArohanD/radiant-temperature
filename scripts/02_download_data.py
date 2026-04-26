@@ -44,7 +44,7 @@ MULC_CODES = {
     80: "agriculture", 91: "woody_wetlands", 92: "emergent_wetlands",
 }
 
-UA = {"User-Agent": "radiant-temperature/0.1 (arohandutt@live.com)"}
+UA = {"User-Agent": "radiant-temperature/0.1"}
 
 
 def _http_get(url: str, timeout: int = 60) -> bytes:

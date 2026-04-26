@@ -46,7 +46,7 @@ def fetch_hrrr_point() -> pd.DataFrame:
     pandas DataFrame indexed by local hour (0..23) with the columns we need to write
     a UMEP met file."""
     import dynamical_catalog
-    dynamical_catalog.identify("radiant-temperature/0.1 (arohandutt@live.com)")
+    dynamical_catalog.identify("radiant-temperature/0.1")
 
     print("Opening HRRR analysis dataset (icechunk, anonymous S3)...")
     ds = dynamical_catalog.open("noaa-hrrr-analysis")

@@ -40,6 +40,7 @@ from pyproj import Transformer
 from _aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTER_LON
 
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
+SOLWEIG_OUT = OUT / "output_folder" / "0_0"
 WEB = OUT / "web"
 WEB.mkdir(exist_ok=True)
 OVERTURE_GEOJSON = REPO / "inputs/raw/durham/overture/buildings.geojson"
@@ -51,15 +52,15 @@ T_TO_LL = Transformer.from_crs("EPSG:32617", "EPSG:4326", always_xy=True)
 
 def _to_rgba_continuous(arr: np.ndarray, vmin: float, vmax: float, cmap_name: str,
                          nodata: float | None) -> np.ndarray:
-    """Map a continuous raster to RGBA, with nodata → fully transparent."""
+    """Map a continuous raster to RGBA, with nodata + NaN → fully transparent."""
     a = arr.astype("float32")
+    mask = ~np.isfinite(a)
     if nodata is not None:
-        mask = a == nodata
-    else:
-        mask = np.zeros_like(a, dtype=bool)
+        mask |= (a == nodata)
+    safe = np.where(mask, vmin, a)
     norm = colors.Normalize(vmin=vmin, vmax=vmax, clip=True)
-    rgba = (matplotlib.colormaps[cmap_name](norm(a)) * 255).astype("uint8")
-    rgba[..., 3] = np.where(mask, 0, 220)  # 86% opacity for visible cells
+    rgba = (matplotlib.colormaps[cmap_name](norm(safe)) * 255).astype("uint8")
+    rgba[..., 3] = np.where(mask, 0, 220)
     return rgba
 
 
@@ -373,7 +374,8 @@ map.on('load', () => {{
     const row = Math.floor((ymax - y) / (ymax - ymin) * r.data.height);
     if (col < 0 || col >= r.data.width || row < 0 || row >= r.data.height) return undefined;
     const v = arr[row * r.data.width + col];
-    if (r.data.nodata !== null && v === r.data.nodata) return null;  // null = nodata
+    if (Number.isNaN(v)) return null;
+    if (r.data.nodata !== null && v === r.data.nodata) return null;
     return v;
   }}
 
@@ -483,6 +485,72 @@ def main() -> None:
     add("dem", "DEM (terrain, m)", "DEM.tif",
         "dem.png", "continuous", vmin=95, vmax=135, cmap="terrain", visible=False,
         display=terrain_disp)
+
+    # ---------------- SOLWEIG outputs (Stage 4) -----------------------------
+    if SOLWEIG_OUT.exists():
+        print("\n  -- SOLWEIG output layers --")
+
+        def add_band(layer_id: str, label: str, src: Path, band: int, png_name: str,
+                      kind: str, visible: bool = False, display: dict | None = None, **kw):
+            with rasterio.open(src) as ds:
+                a = ds.read(band)
+                bds = ds.bounds
+                nodata = ds.nodata
+            if kind == "continuous":
+                rgba = _to_rgba_continuous(a, kw["vmin"], kw["vmax"], kw["cmap"], nodata)
+            elif kind == "palette":
+                rgba = _to_rgba_palette(a, kw["palette"])
+            else:
+                raise ValueError(kind)
+            png = WEB / png_name
+            Image.fromarray(rgba, "RGBA").save(png, optimize=True)
+            data = write_data_bin(a, png.with_suffix(".bin"), bds, nodata)
+            tl = T_TO_LL.transform(bds.left, bds.top); tr = T_TO_LL.transform(bds.right, bds.top)
+            br = T_TO_LL.transform(bds.right, bds.bottom); bl = T_TO_LL.transform(bds.left, bds.bottom)
+            rasters_meta.append({
+                "id": layer_id, "label": label, "url": png_name,
+                "coords": [list(tl),list(tr),list(br),list(bl)], "visible": visible,
+                "data": data,
+                "display": display or {"kind":"continuous","unit":"","fmt":".2f"},
+            })
+            print(f"  {png_name:30s} band {band:>2d}  png {png.stat().st_size//1024} KB  "
+                  f"bin {png.with_suffix('.bin').stat().st_size//1024} KB")
+
+        tmrt_path = SOLWEIG_OUT / "TMRT_0_0.tif"
+        utci_path = SOLWEIG_OUT / "UTCI_0_0.tif"
+        svf_path = SOLWEIG_OUT / "SVF_0_0.tif"
+        shadow_path = SOLWEIG_OUT / "Shadow_0_0.tif"
+
+        tmrt_disp = {"kind":"continuous", "unit":"°C", "fmt":".1f"}
+        utci_disp = {"kind":"continuous", "unit":"°C UTCI", "fmt":".1f"}
+        svf_disp  = {"kind":"continuous", "unit":"(0=closed, 1=open)", "fmt":".3f"}
+        shadow_disp = {"kind":"continuous", "unit":"(0=shadow, 1=sun)", "fmt":".2f"}
+
+        # Tmrt at three representative hours: morning shadows, plateau, evening
+        if tmrt_path.exists():
+            for hour, vis in [(9, False), (15, True), (19, False), (3, False)]:
+                tag = "peak" if hour == 15 else "night" if hour == 3 else f"{hour:02d}h"
+                add_band(f"tmrt_h{hour:02d}", f"Tmrt at {hour:02d}:00 local ({tag})",
+                         tmrt_path, hour + 1, f"tmrt_h{hour:02d}.png",
+                         "continuous", visible=vis, display=tmrt_disp,
+                         vmin=15, vmax=70, cmap="inferno")
+        if utci_path.exists():
+            for hour, vis in [(15, False), (9, False), (19, False)]:
+                tag = "peak" if hour == 15 else f"{hour:02d}h"
+                add_band(f"utci_h{hour:02d}", f"UTCI 'feels-like' at {hour:02d}:00 ({tag})",
+                         utci_path, hour + 1, f"utci_h{hour:02d}.png",
+                         "continuous", visible=vis, display=utci_disp,
+                         vmin=20, vmax=50, cmap="magma")
+        if svf_path.exists():
+            add_band("svf", "Sky View Factor (preprocessor output)",
+                     svf_path, 1, "svf.png",
+                     "continuous", visible=False, display=svf_disp,
+                     vmin=0, vmax=1, cmap="viridis")
+        if shadow_path.exists():
+            add_band("shadow_h15", "Shadow at 15:00 (1=sun, 0=shadow)",
+                     shadow_path, 16, "shadow_h15.png",
+                     "continuous", visible=False, display=shadow_disp,
+                     vmin=0, vmax=1, cmap="gray")
 
     overture_path = stage_overture()
 
