@@ -41,6 +41,8 @@ from _aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTE
 
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
 SOLWEIG_OUT = OUT / "output_folder" / "0_0"
+SCENARIO_DIFF_DIR = REPO / "outputs/scenario_diffs"
+TREES_GEOJSON_RAW = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
 WEB = OUT / "web"
 WEB.mkdir(exist_ok=True)
 OVERTURE_GEOJSON = REPO / "inputs/raw/durham/overture/buildings.geojson"
@@ -198,6 +200,17 @@ INDEX_HTML = '''<!doctype html>
   }}
   #ui h3 {{ margin:0 0 8px; font-size:13px; color:#9cf; font-weight:600; }}
   #ui label {{ display:block; padding:2px 0; cursor:pointer; }}
+  #ui .group-head {{
+    margin:8px 0 3px;
+    font-size:11px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:#9cf;
+    border-bottom:1px solid #335;
+    padding-bottom:2px;
+  }}
+  #ui .group-head:first-child {{ margin-top:0; }}
   #ui input[type=checkbox] {{ margin-right:6px; vertical-align:middle; }}
   #ui input[type=range] {{ width:100%; margin-top:2px; }}
   #ui hr {{ border:none; border-top:1px solid #333; margin:8px 0; }}
@@ -294,6 +307,39 @@ map.on('load', () => {{
     }});
   }}
 
+  // ----- planted sites (Stage 5/6/7 — the intervention)
+  if (MANIFEST.planted) {{
+    map.addSource('planted', {{ type:'geojson', data: MANIFEST.planted }});
+    map.addLayer({{
+      id:'planted-points', type:'circle', source:'planted',
+      paint: {{
+        'circle-radius': 6, 'circle-color': '#39ff14',
+        'circle-stroke-color': '#0d0d0d', 'circle-stroke-width': 1.5,
+        'circle-opacity': 0.9
+      }}
+    }});
+  }}
+
+  // ----- 3D extruded planted disks per scenario (the actual canopy footprint
+  //       and height we burn into Trees.tif). Sized per scenario_design.md.
+  const SCEN_DISK_COLORS = {{ year10: '#7fc97f', mature: '#1b7837' }};  // light → deep green
+  if (MANIFEST.planted_disks) {{
+    for (const [scen, url] of Object.entries(MANIFEST.planted_disks)) {{
+      const sid = `planted-disks-${{scen}}`;
+      map.addSource(sid, {{ type:'geojson', data: url }});
+      map.addLayer({{
+        id: sid, type:'fill-extrusion', source: sid,
+        layout: {{ visibility: scen === 'mature' ? 'visible' : 'none' }},
+        paint: {{
+          'fill-extrusion-height': ['get', 'canopy_h_m'],
+          'fill-extrusion-base': 0,
+          'fill-extrusion-color': SCEN_DISK_COLORS[scen] || '#33aa33',
+          'fill-extrusion-opacity': 0.85
+        }}
+      }});
+    }}
+  }}
+
   // ----- AOI boxes
   map.addSource('aoi', {{ type:'geojson', data: MANIFEST.aoi }});
   map.addLayer({{ id:'aoi-line', type:'line', source:'aoi',
@@ -301,17 +347,49 @@ map.on('load', () => {{
               'tile', '#33ddff', 'processing', '#ffaa00', '#ffffff'],
              'line-width': 2, 'line-dasharray': [2,2] }} }});
 
-  // Build the layer toggle UI
+  // Build the layer toggle UI, grouped by processing stage
   const ui = document.getElementById('layers');
   const allLayers = [
-    ...MANIFEST.rasters.map(r => ({{ id:r.id, label:r.label, visible:r.visible }})),
-    {{ id:'overture-3d', label:'3D buildings (Overture)', visible:true }},
-    {{ id:'aoi-line', label:'AOI bbox', visible:true }},
+    ...MANIFEST.rasters.map(r => ({{ id:r.id, label:r.label, visible:r.visible, group:r.group||'Other' }})),
+    {{ id:'overture-3d',   label:'3D buildings (Overture)',     visible:true,  group:'Inputs (raw, Stage 3)' }},
+    ...(MANIFEST.planted ? [{{ id:'planted-points', label:'Planted sites (point markers)', visible:true, group:'Scenario inputs (Stage 5)' }}] : []),
+    ...Object.keys(MANIFEST.planted_disks || {{}}).map(scen => ({{
+      id: `planted-disks-${{scen}}`,
+      label: `3D planted disks — ${{scen}} (${{ scen === 'year10' ? '5 m / 5×5 m sq' : '12 m / 7×7 m sq' }})`,
+      visible: scen === 'mature',
+      group: 'Scenario inputs (Stage 5)',
+    }})),
+    {{ id:'aoi-line',      label:'AOI bbox',                    visible:true,  group:'Context' }},
   ];
+
+  // Stable group order
+  const GROUP_ORDER = [
+    'Inputs (raw, Stage 3)',
+    'Intermediate (Stage 3 build)',
+    'Scenario inputs (Stage 5)',
+    'Baseline results (Stage 4)',
+    'Scenario results (Stage 7)',
+    'Context',
+    'Other',
+  ];
+  const grouped = new Map();
+  for (const g of GROUP_ORDER) grouped.set(g, []);
   for (const l of allLayers) {{
-    const lbl = document.createElement('label');
-    lbl.innerHTML = `<input type="checkbox" data-layer="${{l.id}}" ${{l.visible?'checked':''}}> ${{l.label}}`;
-    ui.appendChild(lbl);
+    if (!grouped.has(l.group)) grouped.set(l.group, []);
+    grouped.get(l.group).push(l);
+  }}
+
+  for (const [g, layers] of grouped) {{
+    if (!layers.length) continue;
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    head.textContent = g;
+    ui.appendChild(head);
+    for (const l of layers) {{
+      const lbl = document.createElement('label');
+      lbl.innerHTML = `<input type="checkbox" data-layer="${{l.id}}" ${{l.visible?'checked':''}}> ${{l.label}}`;
+      ui.appendChild(lbl);
+    }}
   }}
   ui.addEventListener('change', e => {{
     const id = e.target.dataset.layer; if (!id) return;
@@ -421,7 +499,7 @@ def main() -> None:
     rasters_meta = []
 
     def add(layer_id: str, label: str, src_name: str, png_name: str, kind: str,
-            visible: bool = False, display: dict | None = None, **kw):
+            visible: bool = False, display: dict | None = None, group: str = "Other", **kw):
         src = OUT / src_name
         if not src.exists():
             print(f"  skip {src_name} (missing)")
@@ -431,7 +509,7 @@ def main() -> None:
         size_kb = png.stat().st_size // 1024
         print(f"  {png_name:30s} {w}×{h}  png {size_kb} KB  bin {(WEB/(png.stem+'.bin')).stat().st_size//1024} KB")
         rasters_meta.append({
-            "id": layer_id, "label": label,
+            "id": layer_id, "label": label, "group": group,
             "url": png_name, "coords": coords, "visible": visible,
             "data": data, "display": display or {"kind": "continuous", "unit": "", "fmt": ".2f"},
         })
@@ -453,6 +531,7 @@ def main() -> None:
     rasters_meta.append({
         "id":"dsm_diff",
         "label":"DSM diff (current − raw LiDAR; red=Overture added, blue=tree/noise removed)",
+        "group":"Intermediate (Stage 3 build)",
         "url":"dsm_diff.png", "coords":[list(tl),list(tr),list(br),list(bl)], "visible":True,
         "data": diff_data, "display": {"kind":"continuous", "unit":"m", "fmt":"+.1f"},
     })
@@ -467,31 +546,38 @@ def main() -> None:
     canopy_disp = {"kind": "continuous", "unit": "m above ground", "fmt": ".1f"}
     terrain_disp = {"kind": "continuous", "unit": "m a.s.l.", "fmt": ".1f"}
 
-    add("landcover", "Landcover (SOLWEIG-ready: MULC + Overture buildings)",
-        "Landcover.tif", "landcover.png",
-        "palette", palette=LC_PALETTE, visible=False, display=lc_disp)
-    add("landcover_pre", "Landcover (MULC-only, no buildings)",
-        "Landcover.preMS.tif", "landcover_pre.png",
-        "palette", palette=LC_PALETTE, visible=False, display=lc_disp)
-    add("dsm", "Building DSM (SOLWEIG-ready: ground + buildings only)",
-        "Building_DSM.tif", "dsm.png",
-        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp)
-    add("dsm_lidar_raw", "Building DSM (raw LiDAR first-returns — has trees + noise)",
-        "Building_DSM.preMS.tif", "dsm_lidar_raw.png",
-        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp)
-    add("trees", "Trees CDSM (canopy heights)", "Trees.tif",
-        "trees.png", "continuous", vmin=0, vmax=35, cmap="Greens", visible=False,
-        display=canopy_disp)
+    G_INPUT = "Inputs (raw, Stage 3)"
+    G_INTERMEDIATE = "Intermediate (Stage 3 build)"
+
     add("dem", "DEM (terrain, m)", "DEM.tif",
         "dem.png", "continuous", vmin=95, vmax=135, cmap="terrain", visible=False,
-        display=terrain_disp)
+        display=terrain_disp, group=G_INPUT)
+    add("dsm_lidar_raw", "Building DSM (raw LiDAR first-returns — has trees + noise)",
+        "Building_DSM.preMS.tif", "dsm_lidar_raw.png",
+        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp,
+        group=G_INPUT)
+    add("landcover_pre", "Landcover (MULC-only, no buildings)",
+        "Landcover.preMS.tif", "landcover_pre.png",
+        "palette", palette=LC_PALETTE, visible=False, display=lc_disp, group=G_INPUT)
+    add("trees", "Trees CDSM (canopy heights)", "Trees.tif",
+        "trees.png", "continuous", vmin=0, vmax=35, cmap="Greens", visible=False,
+        display=canopy_disp, group=G_INPUT)
+
+    add("dsm", "Building DSM (SOLWEIG-ready: ground + buildings only)",
+        "Building_DSM.tif", "dsm.png",
+        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp,
+        group=G_INTERMEDIATE)
+    add("landcover", "Landcover (SOLWEIG-ready: MULC + Overture buildings)",
+        "Landcover.tif", "landcover.png",
+        "palette", palette=LC_PALETTE, visible=False, display=lc_disp, group=G_INTERMEDIATE)
 
     # ---------------- SOLWEIG outputs (Stage 4) -----------------------------
     if SOLWEIG_OUT.exists():
         print("\n  -- SOLWEIG output layers --")
 
         def add_band(layer_id: str, label: str, src: Path, band: int, png_name: str,
-                      kind: str, visible: bool = False, display: dict | None = None, **kw):
+                      kind: str, visible: bool = False, display: dict | None = None,
+                      group: str = "Other", **kw):
             with rasterio.open(src) as ds:
                 a = ds.read(band)
                 bds = ds.bounds
@@ -508,7 +594,7 @@ def main() -> None:
             tl = T_TO_LL.transform(bds.left, bds.top); tr = T_TO_LL.transform(bds.right, bds.top)
             br = T_TO_LL.transform(bds.right, bds.bottom); bl = T_TO_LL.transform(bds.left, bds.bottom)
             rasters_meta.append({
-                "id": layer_id, "label": label, "url": png_name,
+                "id": layer_id, "label": label, "group": group, "url": png_name,
                 "coords": [list(tl),list(tr),list(br),list(bl)], "visible": visible,
                 "data": data,
                 "display": display or {"kind":"continuous","unit":"","fmt":".2f"},
@@ -526,33 +612,129 @@ def main() -> None:
         svf_disp  = {"kind":"continuous", "unit":"(0=closed, 1=open)", "fmt":".3f"}
         shadow_disp = {"kind":"continuous", "unit":"(0=shadow, 1=sun)", "fmt":".2f"}
 
-        # Tmrt at three representative hours: morning shadows, plateau, evening
+        G_BASELINE = "Baseline results (Stage 4)"
+
         if tmrt_path.exists():
             for hour, vis in [(9, False), (15, True), (19, False), (3, False)]:
                 tag = "peak" if hour == 15 else "night" if hour == 3 else f"{hour:02d}h"
                 add_band(f"tmrt_h{hour:02d}", f"Tmrt at {hour:02d}:00 local ({tag})",
                          tmrt_path, hour + 1, f"tmrt_h{hour:02d}.png",
                          "continuous", visible=vis, display=tmrt_disp,
-                         vmin=15, vmax=70, cmap="inferno")
+                         vmin=15, vmax=70, cmap="inferno", group=G_BASELINE)
         if utci_path.exists():
             for hour, vis in [(15, False), (9, False), (19, False)]:
                 tag = "peak" if hour == 15 else f"{hour:02d}h"
                 add_band(f"utci_h{hour:02d}", f"UTCI 'feels-like' at {hour:02d}:00 ({tag})",
                          utci_path, hour + 1, f"utci_h{hour:02d}.png",
                          "continuous", visible=vis, display=utci_disp,
-                         vmin=20, vmax=50, cmap="magma")
+                         vmin=20, vmax=50, cmap="magma", group=G_BASELINE)
         if svf_path.exists():
             add_band("svf", "Sky View Factor (preprocessor output)",
                      svf_path, 1, "svf.png",
                      "continuous", visible=False, display=svf_disp,
-                     vmin=0, vmax=1, cmap="viridis")
+                     vmin=0, vmax=1, cmap="viridis", group=G_BASELINE)
         if shadow_path.exists():
             add_band("shadow_h15", "Shadow at 15:00 (1=sun, 0=shadow)",
                      shadow_path, 16, "shadow_h15.png",
                      "continuous", visible=False, display=shadow_disp,
-                     vmin=0, vmax=1, cmap="gray")
+                     vmin=0, vmax=1, cmap="gray", group=G_BASELINE)
+
+    # ---------------- Stage 7 — scenario diff layers ------------------------
+    if SCENARIO_DIFF_DIR.exists():
+        print("\n  -- scenario diff layers (Stage 7) --")
+        diff_disp = {"kind":"continuous", "unit":"°C", "fmt":"+.1f"}
+        for scen in ("year10", "mature"):
+            src = SCENARIO_DIFF_DIR / f"dtmrt_peak_{scen}.tif"
+            if not src.exists():
+                continue
+            with rasterio.open(src) as ds:
+                a = ds.read(1).astype("float32")
+                bds = ds.bounds
+            # Diverging colormap for cooling/warming. NaN = building (transparent).
+            mask = ~np.isfinite(a)
+            from matplotlib import colors as mcolors_
+            norm = mcolors_.TwoSlopeNorm(vmin=-25, vcenter=0, vmax=5)
+            rgba = (matplotlib.colormaps["RdBu_r"](norm(np.where(mask, 0, a))) * 255).astype("uint8")
+            rgba[..., 3] = np.where(mask | (np.abs(a) < 0.05), 0, 220)
+            png = WEB / f"dtmrt_peak_{scen}.png"
+            Image.fromarray(rgba, "RGBA").save(png, optimize=True)
+            data = write_data_bin(a, png.with_suffix(".bin"), bds, nodata=None)
+            tl = T_TO_LL.transform(bds.left, bds.top); tr = T_TO_LL.transform(bds.right, bds.top)
+            br = T_TO_LL.transform(bds.right, bds.bottom); bl = T_TO_LL.transform(bds.left, bds.bottom)
+            rasters_meta.append({
+                "id": f"dtmrt_{scen}",
+                "label": f"ΔTmrt at peak (scenario={scen} − baseline)",
+                "group": "Scenario results (Stage 7)",
+                "url": png.name, "coords":[list(tl),list(tr),list(br),list(bl)],
+                "visible": (scen == "mature"),
+                "data": data, "display": diff_disp,
+            })
+            print(f"  {png.name:30s}  png {png.stat().st_size//1024} KB  "
+                  f"bin {png.with_suffix('.bin').stat().st_size//1024} KB")
 
     overture_path = stage_overture()
+
+    # Stage planted-points layer for the inspector + 3D disks per scenario
+    planted_geojson_path = None
+    planted_disks = {}  # scenario_name -> path
+    if TREES_GEOJSON_RAW.exists():
+        import geopandas as gpd
+        sites = gpd.read_file(TREES_GEOJSON_RAW)
+        sites = sites[sites["present"] == "Planting Site"].to_crs("EPSG:32617")
+        sites_utm = sites.cx[TILE_BBOX[0]:TILE_BBOX[2], TILE_BBOX[1]:TILE_BBOX[3]].copy()
+        # Point markers (lat/lon)
+        sites_ll = sites_utm.to_crs("EPSG:4326")
+        planted_geojson_path = WEB / "planted_sites.geojson"
+        sites_ll.to_file(planted_geojson_path, driver="GeoJSON")
+        print(f"  staged {len(sites_ll)} planting-site points → {planted_geojson_path}")
+
+        # 3D extruded disks: square buffers in UTM, then to lat/lon for MapLibre.
+        # Per scenario_design.md: year10 = 5 m canopy / 5×5 m sq footprint;
+        #                         mature = 12 m canopy / 7×7 m sq footprint.
+        SCENARIO_DISKS = {"year10": (5.0, 2.5), "mature": (12.0, 3.5)}
+        for scen, (canopy_h_m, half_side_m) in SCENARIO_DISKS.items():
+            buf = sites_utm.copy()
+            buf["geometry"] = buf.geometry.buffer(half_side_m, cap_style=3)  # square
+            buf["canopy_h_m"] = canopy_h_m
+            buf["scenario"] = scen
+            buf_ll = buf[["geometry", "canopy_h_m", "scenario"]].to_crs("EPSG:4326")
+            dst = WEB / f"planted_disks_{scen}.geojson"
+            buf_ll.to_file(dst, driver="GeoJSON")
+            planted_disks[scen] = dst.name
+            print(f"  staged {len(buf_ll)} planting disks ({scen}, h={canopy_h_m} m) → {dst}")
+
+    # ---------------- Trees CDSM diff (scenario − baseline) -----------------
+    print("\n  -- Trees CDSM diff layers (scenario − baseline) --")
+    canopy_disp_diff = {"kind":"continuous", "unit":"m canopy added", "fmt":"+.1f"}
+    with rasterio.open(OUT / "Trees.tif") as ds:
+        base_t = ds.read(1).astype("float32")
+        t_bds = ds.bounds
+    for scen, vmax_canopy in (("year10", 5.0), ("mature", 12.0)):
+        scen_t_path = REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/Trees.tif"
+        if not scen_t_path.exists():
+            continue
+        with rasterio.open(scen_t_path) as ds:
+            scen_t = ds.read(1).astype("float32")
+        diff = scen_t - base_t
+        # Color: solid green ramp from 0 (transparent) to vmax_canopy
+        mask = np.abs(diff) < 0.01
+        norm = colors.Normalize(vmin=0, vmax=max(5, vmax_canopy + 2))
+        rgba = (matplotlib.colormaps["Greens"](norm(np.where(mask, 0, diff))) * 255).astype("uint8")
+        rgba[..., 3] = np.where(mask, 0, 230)
+        png = WEB / f"trees_diff_{scen}.png"
+        Image.fromarray(rgba, "RGBA").save(png, optimize=True)
+        data = write_data_bin(diff, png.with_suffix(".bin"), t_bds, nodata=None)
+        tl = T_TO_LL.transform(t_bds.left, t_bds.top); tr = T_TO_LL.transform(t_bds.right, t_bds.top)
+        br = T_TO_LL.transform(t_bds.right, t_bds.bottom); bl = T_TO_LL.transform(t_bds.left, t_bds.bottom)
+        rasters_meta.append({
+            "id": f"trees_diff_{scen}",
+            "label": f"Δ Trees CDSM ({scen} − baseline) — green = canopy added",
+            "group": "Scenario inputs (Stage 5)",
+            "url": png.name, "coords":[list(tl),list(tr),list(br),list(bl)],
+            "visible": False,
+            "data": data, "display": canopy_disp_diff,
+        })
+        print(f"  {png.name:30s}  png {png.stat().st_size//1024} KB  bin {png.with_suffix('.bin').stat().st_size//1024} KB")
 
     # AOI boxes as a single FeatureCollection
     def box_to_feature(bbox, kind):
@@ -569,6 +751,8 @@ def main() -> None:
     manifest = {
         "rasters": rasters_meta,
         "overture": "overture_buildings.geojson" if overture_path else None,
+        "planted": "planted_sites.geojson" if planted_geojson_path else None,
+        "planted_disks": planted_disks,
         "aoi": aoi_fc,
     }
 
