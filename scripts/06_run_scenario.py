@@ -94,7 +94,7 @@ def run_one(base: Path) -> int:
         dem_filename="DEM.tif",
         trees_filename="Trees.tif",
         landcover_filename="Landcover.tif",
-        tile_size=1600,  # > raster shape so it stays a single tile (see 04_run_baseline.py)
+        tile_size=1000,  # 3×3 grid for 2 km AOI; ~5 GB peak per tile. See 04_run_baseline.py.
         overlap=100,
         use_own_met=True,
         own_met_file=str(base / f"ownmet_{SIM_DATE}.txt"),

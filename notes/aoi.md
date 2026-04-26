@@ -1,26 +1,36 @@
 # AOI decision record
 
-**AOI name**: `durham_downtown`
-**Center (lat, lon)**: `35.9966°N, -78.8986°W`
-**Center (UTM 17N, EPSG:32617)**: `(689415.6, 3985613.4)`
-**Size**: 1.0 km × 1.0 km core, 200 m shadow buffer
-**TILE_BBOX (EPSG:32617)**: `(688915.6, 3985113.4, 689915.6, 3986113.4)`
-**PROCESSING_BBOX (EPSG:32617)**: `(688715.6, 3984913.4, 690115.6, 3986313.4)`
+## Current AOI: Hayti (2026-04-26 pivot)
 
-**Simulation date**: `2025-06-23` (KRDU max 99°F, midday cloud score 1.00 — clear/FEW). Top hot+clear day of summer 2025, picked automatically by `02_download_data.py` from Iowa Mesonet ASOS.
+**AOI name**: `durham_hayti`
+**Center (lat, lon)**: `35.985°N, -78.900°W` (~100 m N of Hayti Heritage Center, 804 Old Fayetteville St)
+**Center (UTM 17N, EPSG:32617)**: `(689317.1, 3984323.8)`
+**Size**: 2.0 km × 2.0 km core, 200 m shadow buffer
+**TILE_BBOX (EPSG:32617)**: `(688317.1, 3983323.8, 690317.1, 3985323.8)`
+**PROCESSING_BBOX (EPSG:32617)**: `(688117.1, 3983123.8, 690517.1, 3985523.8)`
 
-**Planting sites within AOI**: **22** (filter `present == "Planting Site"` from Durham's Trees & Planting Sites layer; 6,011 total citywide).
+**Coverage at this center**:
+- North: just past the Durham Freeway (NC-147) — historic boundary that bisected and isolated Hayti
+- South: through Lakewood Avenue
+- East: across S Roxboro / N to E Pettigrew
+- West: ~Duke Street
+- Captures Hayti core + Hayti Heritage Center + Lincoln Hospital site + the freeway interface that's central to the neighborhood's redlining/displacement story
 
-## Why this location
+**Simulation date**: `2025-06-23` (unchanged — KRDU max 99°F, midday cloud score 1.00; year's hottest clear day in summer 2025).
 
-- City Hall / Civic Plaza area: dense pavement (Civic Plaza, surface lots near Mangum/Roxboro) plus mature street trees on Main Street. High Tmrt contrast for the 3-panel figure.
-- Recognizable to local audiences. Easy to caption on a slide.
-- 1×1 km box centered here covers roughly Geer Street (north), East Pettigrew (south), Mangum (east), Duke Street (west).
+## Why Hayti
 
-## Pivot from CLAUDE.md
+- One of Durham's **8 EPA-identified priority neighborhoods** that get 85 % of the city's 8,500-tree planting commitment (2025–2028, $5.3M USDA grant, see `scenario_design.md`).
+- Historically Black neighborhood, redlined in the 1930s, ~50 % displaced in 1960s urban renewal for the Durham Freeway. Persistent canopy gap and heat-island.
+- Aligns with **CLAUDE.md's original equity framing**, which we'd previously deferred when piloting downtown for visual impact.
+- Higher density of `Planting Site` features expected vs downtown (downtown: 22 sites in 1 km; Hayti likely several dozen in 2 km — confirmed at runtime).
 
-The original spec called for Hayti specifically because of its EPA equity-priority designation. The user redirected to downtown for visual impact. Methodology unchanged. The equity framing in the headline / slide should adjust accordingly (or be dropped if not honest for downtown).
+## Pivot history
+
+1. **Original spec (CLAUDE.md)**: Hayti, 1 km × 1 km. EPA-priority equity framing.
+2. **First run (2026-04-25)**: pivoted to **downtown** (35.997°N, -78.899°W, 1 km × 1 km) for visual impact. 22 planting sites. Pipeline validated end-to-end. Outputs preserved at `inputs/processed/durham_downtown_*` + `figures/durham_downtown/` + `outputs/durham_downtown_scenario_diffs/`.
+3. **Now (2026-04-26)**: pivot back to **Hayti**, scaled up to 2 km × 2 km. Same pipeline, same date, same canopy-scenario design.
 
 ## To relocate
 
-Edit `scripts/_aoi.py` — `AOI_NAME`, `AOI_CENTER_LAT`, `AOI_CENTER_LON`, `AOI_SIZE_KM`. Re-run `02_download_data.py` to redo the planting-point sanity count for the new bbox. The data sources are city-wide so no re-downloads needed for any Durham relocation.
+Edit `scripts/_aoi.py` — `AOI_NAME`, `AOI_CENTER_LAT/LON`, `AOI_SIZE_KM`. Re-run `02_download_data.py` (citywide data, mostly cached) for the planting-point sanity count, then Stage 3 onward. The data sources are city-wide so no re-downloads needed for any Durham relocation. For non-Durham AOIs, swap MULC source (EnviroAtlas covers ~30 US cities); LiDAR (NC Phase 3 covers all NC; USGS 3DEP for elsewhere); HRRR + Overture are global.

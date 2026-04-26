@@ -58,7 +58,8 @@ from rasterio.features import rasterize
 from _aoi import AOI_NAME, PROCESSING_BBOX
 
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
-GEOJSON = REPO / "inputs/raw/durham/overture/buildings.geojson"
+# AOI-namespaced so different AOIs get fresh footprint pulls
+GEOJSON = REPO / f"inputs/raw/durham/overture/buildings_{AOI_NAME}.geojson"
 MARKER = OUT / ".dsm_built"
 
 

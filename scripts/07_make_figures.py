@@ -37,9 +37,9 @@ from _aoi import AOI_NAME, SIM_DATE, TILE_BBOX
 
 BASELINE = REPO / f"inputs/processed/{AOI_NAME}_baseline"
 TREES_GEOJSON = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
-FIG_DIR = REPO / "figures"
-FIG_DIR.mkdir(exist_ok=True)
-DIFF_DIR = REPO / "outputs/scenario_diffs"
+FIG_DIR = REPO / f"figures/{AOI_NAME}"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
 DIFF_DIR.mkdir(parents=True, exist_ok=True)
 
 SCENARIOS = ["year10", "mature"]

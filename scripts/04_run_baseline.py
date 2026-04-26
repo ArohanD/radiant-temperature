@@ -133,10 +133,14 @@ def run_solweig() -> None:
         dem_filename="DEM.tif",
         trees_filename="Trees.tif",
         landcover_filename="Landcover.tif",
-        # tile_size > raster shape so it stays a single tile. Our raster is
-        # 1401×1401; tile_size=1400 produces three 1-pixel slivers that crash
-        # the wall-gradient calc. 1600 keeps it as a single 0_0 tile.
-        tile_size=1600,
+        # tile_size 1000 with overlap 100 yields a 3×3 grid for our 2401×2401
+        # raster (corner tile 401×401 — above the gradient-calc minimum, no
+        # sliver crash). Earlier 2600 (single tile) and 1500 (2×2 grid) both
+        # OOMed on this 29 GB laptop — a single 1500×1500 SOLWEIG tile peaks
+        # ~10 GB while VS Code/browser eat 10-13 GB, leaving no headroom.
+        # 1000-px tiles peak ~5 GB. For the original 1 km / 1401 px AOI this
+        # still works (4-tile grid: 1000 + 401).
+        tile_size=1000,
         overlap=100,
         use_own_met=True,
         own_met_file=str(BASE / f"ownmet_{SIM_DATE}.txt"),

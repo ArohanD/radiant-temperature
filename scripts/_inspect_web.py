@@ -41,7 +41,7 @@ from _aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTE
 
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
 SOLWEIG_OUT = OUT / "output_folder" / "0_0"
-SCENARIO_DIFF_DIR = REPO / "outputs/scenario_diffs"
+SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
 TREES_GEOJSON_RAW = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
 WEB = OUT / "web"
 WEB.mkdir(exist_ok=True)

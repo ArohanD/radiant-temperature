@@ -5,10 +5,11 @@ Iowa Mesonet KRDU date pick.
 """
 from pyproj import Transformer
 
-AOI_NAME = "durham_downtown"
-AOI_CENTER_LAT = 35.9966          # Durham City Hall / Civic Plaza area
-AOI_CENTER_LON = -78.8986
-AOI_SIZE_KM = 1.0                 # core analysis tile, square (1×1 km)
+AOI_NAME = "durham_hayti"
+AOI_CENTER_LAT = 35.985            # Hayti — historically Black, EPA-priority
+AOI_CENTER_LON = -78.900           # neighborhood ~100m N of Hayti Heritage Ctr
+AOI_SIZE_KM = 2.0                  # captures Hayti core + freeway interface
+                                    # + south to Lakewood Ave
 SHADOW_BUFFER_M = 200             # extra ring for SOLWEIG shadow transfer
 
 SIM_DATE = "2025-06-23"
