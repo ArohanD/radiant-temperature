@@ -82,9 +82,33 @@ def _to_rgba_diff(arr: np.ndarray, vlim: float = 30.0) -> np.ndarray:
     return rgba
 
 
-def render_png(src: Path, dst: Path, kind: str, **kw) -> tuple[list[list[float]], int, int]:
-    """Render a single raster to PNG and return its [[lon,lat],..] corners (TR-BR-BL-TL)
-    suitable for a MapLibre `image` source's `coordinates` field."""
+def write_data_bin(arr: np.ndarray, dst_bin: Path, bounds_utm, nodata) -> dict:
+    """Write a raw little-endian binary blob of the array, plus return the metadata
+    block the JS hover tool needs to sample it. Float32 stays float32; integer-coded
+    rasters (Landcover, lc_change) are kept as uint8."""
+    if arr.dtype.kind == "f":
+        out = arr.astype("<f4")
+        dtype_label = "float32"
+    elif arr.dtype.kind in "ui":
+        out = arr.astype("<u1")
+        dtype_label = "uint8"
+    else:
+        raise ValueError(f"unsupported dtype {arr.dtype}")
+    dst_bin.write_bytes(out.tobytes())
+    return {
+        "data_url": dst_bin.name,
+        "dtype": dtype_label,
+        "width": int(arr.shape[1]),
+        "height": int(arr.shape[0]),
+        "bounds_utm": [float(bounds_utm.left), float(bounds_utm.bottom),
+                        float(bounds_utm.right), float(bounds_utm.top)],
+        "nodata": (None if nodata is None else float(nodata)),
+    }
+
+
+def render_png(src: Path, dst: Path, kind: str, **kw) -> tuple[list[list[float]], int, int, dict]:
+    """Render a raster to PNG, write a sidecar .bin for hover sampling, and return
+    (lon/lat corners, width, height, data-block) for the manifest."""
     with rasterio.open(src) as ds:
         a = ds.read(1)
         nodata = ds.nodata
@@ -100,14 +124,14 @@ def render_png(src: Path, dst: Path, kind: str, **kw) -> tuple[list[list[float]]
         raise ValueError(kind)
 
     Image.fromarray(rgba, "RGBA").save(dst, optimize=True)
+    data_block = write_data_bin(a, dst.with_suffix(".bin"), b, nodata)
 
-    # MapLibre expects coordinates in this order: TL, TR, BR, BL  (lon, lat)
     tl = T_TO_LL.transform(b.left, b.top)
     tr = T_TO_LL.transform(b.right, b.top)
     br = T_TO_LL.transform(b.right, b.bottom)
     bl = T_TO_LL.transform(b.left, b.bottom)
     coords = [list(tl), list(tr), list(br), list(bl)]
-    return coords, rgba.shape[1], rgba.shape[0]
+    return coords, rgba.shape[1], rgba.shape[0], data_block
 
 
 # UMEP landcover palette
@@ -162,6 +186,7 @@ INDEX_HTML = '''<!doctype html>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js"></script>
 <style>
   html,body,#map {{ margin:0; padding:0; height:100%; width:100%; }}
   #ui {{
@@ -181,6 +206,17 @@ INDEX_HTML = '''<!doctype html>
     background:rgba(20,20,28,.92); color:#eee; font:12px/1.4 monospace;
     padding:6px 10px; border-radius:4px; pointer-events:none;
   }}
+  #hover {{
+    position:absolute; top:10px; right:10px; z-index:1;
+    background:rgba(20,20,28,.92); color:#eee; font:12px/1.45 monospace;
+    padding:8px 10px; border-radius:6px; min-width:280px; max-width:380px;
+    box-shadow:0 2px 8px rgba(0,0,0,.4); pointer-events:none;
+  }}
+  #hover .head {{ color:#9cf; font-weight:600; margin-bottom:4px; }}
+  #hover .row {{ display:flex; justify-content:space-between; gap:8px; }}
+  #hover .row .k {{ color:#bbb; }}
+  #hover .row .v {{ color:#fff; }}
+  #hover .empty {{ color:#666; }}
 </style>
 </head>
 <body>
@@ -199,6 +235,7 @@ INDEX_HTML = '''<!doctype html>
   </label>
 </div>
 <div id="info">click a building</div>
+<div id="hover"><div class="head">Pixel values at cursor</div><div id="hoverBody" class="empty">move your mouse over the map…</div></div>
 <script>
 const MANIFEST = {MANIFEST_JSON};
 
@@ -233,7 +270,8 @@ map.on('load', () => {{
     map.addSource(r.id, {{ type:'image', url: r.url, coordinates: r.coords }});
     map.addLayer({{
       id: r.id, type:'raster', source: r.id,
-      paint: {{ 'raster-opacity': r.visible ? 0.8 : 0, 'raster-fade-duration': 0 }}
+      layout: {{ visibility: r.visible ? 'visible' : 'none' }},
+      paint: {{ 'raster-opacity': 0.8, 'raster-fade-duration': 0 }}
     }});
   }}
 
@@ -299,6 +337,76 @@ map.on('load', () => {{
   }});
   map.on('mouseenter','overture-3d', () => map.getCanvas().style.cursor='pointer');
   map.on('mouseleave','overture-3d', () => map.getCanvas().style.cursor='');
+
+  // ----- hover-value tool: load each raster's binary blob and sample on mousemove
+  proj4.defs("EPSG:32617","+proj=utm +zone=17 +datum=WGS84 +units=m +no_defs");
+  const dataCache = new Map();      // id -> TypedArray once loaded
+  const dataLoading = new Map();    // id -> Promise
+
+  async function loadBin(r) {{
+    if (dataCache.has(r.id)) return dataCache.get(r.id);
+    if (dataLoading.has(r.id)) return dataLoading.get(r.id);
+    const p = fetch(r.data.data_url).then(x => x.arrayBuffer()).then(ab => {{
+      const arr = r.data.dtype === 'uint8'
+        ? new Uint8Array(ab)
+        : new Float32Array(ab);
+      dataCache.set(r.id, arr);
+      return arr;
+    }});
+    dataLoading.set(r.id, p);
+    return p;
+  }}
+
+  // Preload everything in parallel — local server, ~50MB total
+  Promise.all(MANIFEST.rasters.map(loadBin)).then(() => {{
+    document.getElementById('hoverBody').textContent =
+      'move your mouse over the map (rasters loaded)';
+  }});
+
+  function sample(r, lon, lat) {{
+    const arr = dataCache.get(r.id);
+    if (!arr) return undefined;
+    const [x, y] = proj4("EPSG:4326","EPSG:32617",[lon,lat]);
+    const [xmin, ymin, xmax, ymax] = r.data.bounds_utm;
+    if (x < xmin || x > xmax || y < ymin || y > ymax) return undefined;
+    const col = Math.floor((x - xmin) / (xmax - xmin) * r.data.width);
+    const row = Math.floor((ymax - y) / (ymax - ymin) * r.data.height);
+    if (col < 0 || col >= r.data.width || row < 0 || row >= r.data.height) return undefined;
+    const v = arr[row * r.data.width + col];
+    if (r.data.nodata !== null && v === r.data.nodata) return null;  // null = nodata
+    return v;
+  }}
+
+  function fmtNum(v, fmt) {{
+    if (fmt === '+.1f') return (v >= 0 ? '+' : '') + v.toFixed(1);
+    const m = /^\\.(\\d+)f$/.exec(fmt) || /^[+]?\\.(\\d+)f$/.exec(fmt);
+    return v.toFixed(m ? parseInt(m[1]) : 2);
+  }}
+
+  function renderHover(lon, lat) {{
+    const rows = [];
+    for (const r of MANIFEST.rasters) {{
+      if (map.getLayoutProperty(r.id, 'visibility') !== 'visible') continue;
+      const v = sample(r, lon, lat);
+      let txt;
+      if (v === undefined) {{ txt = '<span class="empty">outside raster / loading</span>'; }}
+      else if (v === null) {{ txt = '<span class="empty">nodata</span>'; }}
+      else if (r.display.kind === 'palette') {{
+        const lbl = r.display.labels[String(v)] || '?';
+        txt = `${{v}} <span class="empty">(${{lbl}})</span>`;
+      }} else {{
+        txt = `${{fmtNum(v, r.display.fmt)}} ${{r.display.unit || ''}}`.trim();
+      }}
+      rows.push(`<div class="row"><span class="k">${{r.label}}</span><span class="v">${{txt}}</span></div>`);
+    }}
+    const utm = proj4("EPSG:4326","EPSG:32617",[lon,lat]);
+    const head = `<div class="row"><span class="k">lon, lat</span><span class="v">${{lon.toFixed(5)}}, ${{lat.toFixed(5)}}</span></div>` +
+                 `<div class="row"><span class="k">UTM 17N x, y</span><span class="v">${{utm[0].toFixed(1)}}, ${{utm[1].toFixed(1)}}</span></div>`;
+    document.getElementById('hoverBody').innerHTML =
+      head + (rows.length ? '<hr style="border:none;border-top:1px solid #333;margin:5px 0">' + rows.join('') : '<div class="empty" style="margin-top:5px">enable a raster layer to see values</div>');
+  }}
+
+  map.on('mousemove', e => renderHover(e.lngLat.lng, e.lngLat.lat));
 }});
 </script>
 </body>
@@ -311,51 +419,70 @@ def main() -> None:
     rasters_meta = []
 
     def add(layer_id: str, label: str, src_name: str, png_name: str, kind: str,
-            visible: bool = False, **kw):
+            visible: bool = False, display: dict | None = None, **kw):
         src = OUT / src_name
         if not src.exists():
             print(f"  skip {src_name} (missing)")
             return
         png = WEB / png_name
-        coords, w, h = render_png(src, png, kind, **kw)
+        coords, w, h, data = render_png(src, png, kind, **kw)
         size_kb = png.stat().st_size // 1024
-        print(f"  {png_name:30s} {w}×{h}  {size_kb} KB")
+        print(f"  {png_name:30s} {w}×{h}  png {size_kb} KB  bin {(WEB/(png.stem+'.bin')).stat().st_size//1024} KB")
         rasters_meta.append({
             "id": layer_id, "label": label,
             "url": png_name, "coords": coords, "visible": visible,
+            "data": data, "display": display or {"kind": "continuous", "unit": "", "fmt": ".2f"},
         })
 
-    # Render dsm_diff from the two inputs (computed in-memory; not a single source raster)
+    # Diff: SOLWEIG-ready DSM minus raw LiDAR DSM. Negative (blue) where we
+    # dropped non-building tall stuff (trees, noise, awnings) by gating with
+    # Overture footprints. Positive (red) where Overture added a roof that
+    # LiDAR missed (post-2015 buildings, mostly).
     with rasterio.open(OUT / "Building_DSM.tif") as ds:
         new_dsm = ds.read(1); b = ds.bounds; nd = ds.nodata
     with rasterio.open(OUT / "Building_DSM.preMS.tif") as ds:
-        old_dsm = ds.read(1)
-    valid = (new_dsm != nd) & (old_dsm != nd)
-    diff = np.where(valid, new_dsm - old_dsm, 0).astype("float32")
-    rgba = _to_rgba_diff(diff, vlim=30.0)
-    Image.fromarray(rgba, "RGBA").save(WEB / "dsm_diff.png", optimize=True)
-    tl = T_TO_LL.transform(b.left, b.top)
-    tr = T_TO_LL.transform(b.right, b.top)
-    br = T_TO_LL.transform(b.right, b.bottom)
-    bl = T_TO_LL.transform(b.left, b.bottom)
-    rasters_meta.append({"id":"dsm_diff", "label":"DSM diff (red = Overture lifted, blue = lowered)",
-                         "url":"dsm_diff.png", "coords":[list(tl),list(tr),list(br),list(bl)],
-                         "visible":True})
-    print(f"  dsm_diff.png                   {rgba.shape[1]}×{rgba.shape[0]}  "
-          f"{(WEB/'dsm_diff.png').stat().st_size//1024} KB")
+        raw_dsm = ds.read(1); raw_nd = ds.nodata
+    valid = (new_dsm != nd) & (raw_dsm != raw_nd)
+    diff = np.where(valid, new_dsm - raw_dsm, 0).astype("float32")
+    Image.fromarray(_to_rgba_diff(diff, vlim=30.0), "RGBA").save(WEB / "dsm_diff.png", optimize=True)
+    diff_data = write_data_bin(diff, WEB / "dsm_diff.bin", b, nodata=None)
+    tl = T_TO_LL.transform(b.left, b.top); tr = T_TO_LL.transform(b.right, b.top)
+    br = T_TO_LL.transform(b.right, b.bottom); bl = T_TO_LL.transform(b.left, b.bottom)
+    rasters_meta.append({
+        "id":"dsm_diff",
+        "label":"DSM diff (current − raw LiDAR; red=Overture added, blue=tree/noise removed)",
+        "url":"dsm_diff.png", "coords":[list(tl),list(tr),list(br),list(bl)], "visible":True,
+        "data": diff_data, "display": {"kind":"continuous", "unit":"m", "fmt":"+.1f"},
+    })
+    print(f"  dsm_diff.png                   {diff.shape[1]}×{diff.shape[0]}  "
+          f"png {(WEB/'dsm_diff.png').stat().st_size//1024} KB  "
+          f"bin {(WEB/'dsm_diff.bin').stat().st_size//1024} KB")
 
-    add("landcover_patched", "Landcover (patched, UMEP codes)", "Landcover.tif", "landcover.png",
-        "palette", palette=LC_PALETTE, visible=False)
-    add("landcover_pre", "Landcover (LiDAR only)", "Landcover.preMS.tif", "landcover_pre.png",
-        "palette", palette=LC_PALETTE, visible=False)
-    add("dsm_patched", "Building DSM (patched, m above sea level)", "Building_DSM.tif",
-        "dsm_patched.png", "continuous", vmin=100, vmax=220, cmap="inferno", visible=False)
-    add("dsm_pre", "Building DSM (LiDAR only)", "Building_DSM.preMS.tif",
-        "dsm_pre.png", "continuous", vmin=100, vmax=220, cmap="inferno", visible=False)
-    add("trees", "Trees CDSM (canopy height, m)", "Trees.tif",
-        "trees.png", "continuous", vmin=0, vmax=35, cmap="Greens", visible=False)
+    LC_LABELS = {1: "paved", 2: "building", 5: "grass / under-tree",
+                 6: "bare soil", 7: "water"}
+    lc_disp = {"kind": "palette", "labels": LC_LABELS, "name": "UMEP class"}
+    elev_disp = {"kind": "continuous", "unit": "m a.s.l.", "fmt": ".1f"}
+    canopy_disp = {"kind": "continuous", "unit": "m above ground", "fmt": ".1f"}
+    terrain_disp = {"kind": "continuous", "unit": "m a.s.l.", "fmt": ".1f"}
+
+    add("landcover", "Landcover (SOLWEIG-ready: MULC + Overture buildings)",
+        "Landcover.tif", "landcover.png",
+        "palette", palette=LC_PALETTE, visible=False, display=lc_disp)
+    add("landcover_pre", "Landcover (MULC-only, no buildings)",
+        "Landcover.preMS.tif", "landcover_pre.png",
+        "palette", palette=LC_PALETTE, visible=False, display=lc_disp)
+    add("dsm", "Building DSM (SOLWEIG-ready: ground + buildings only)",
+        "Building_DSM.tif", "dsm.png",
+        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp)
+    add("dsm_lidar_raw", "Building DSM (raw LiDAR first-returns — has trees + noise)",
+        "Building_DSM.preMS.tif", "dsm_lidar_raw.png",
+        "continuous", vmin=100, vmax=220, cmap="inferno", visible=False, display=elev_disp)
+    add("trees", "Trees CDSM (canopy heights)", "Trees.tif",
+        "trees.png", "continuous", vmin=0, vmax=35, cmap="Greens", visible=False,
+        display=canopy_disp)
     add("dem", "DEM (terrain, m)", "DEM.tif",
-        "dem.png", "continuous", vmin=95, vmax=135, cmap="terrain", visible=False)
+        "dem.png", "continuous", vmin=95, vmax=135, cmap="terrain", visible=False,
+        display=terrain_disp)
 
     overture_path = stage_overture()
 

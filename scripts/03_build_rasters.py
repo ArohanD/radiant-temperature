@@ -155,29 +155,36 @@ def build_landcover_and_trees(dsm_path: Path, dem_path: Path, mulc_path: Path) -
     height = np.where(valid, dsm - dem, 0.0).astype("float32")
     height = np.clip(height, 0, 100)  # cap at 100m — anything above is a LiDAR artifact
 
-    # Reclass MULC → UMEP codes. Impervious (MULC=20) splits by height: building if
-    # DSM-DEM > 2.5m, else paved. Without this, every road and rooftop reads as the
-    # same class and SOLWEIG can't tell streets from buildings.
+    # Reclass MULC → UMEP codes. Building (UMEP 2) is **not** assigned here —
+    # MULC has no building class, and inferring buildings from LiDAR-DSM height
+    # also picks up trees/awnings/billboards. Authoritative building footprints
+    # (Overture) are applied later by _patch_buildings.py, which sets every
+    # footprint cell to UMEP 2.
     lc = np.zeros_like(mulc, dtype="uint8")
-    lc[mulc == 10] = 7                              # water
-    lc[mulc == 20] = 1                              # impervious default → paved
-    lc[(mulc == 20) & (height > 2.5)] = 2           # impervious + tall → building
-    lc[mulc == 30] = 6                              # bare soil
+    lc[mulc == 10] = 7                                  # water
+    lc[mulc == 20] = 1                                  # impervious → paved
+    lc[mulc == 30] = 6                                  # bare soil
     lc[(mulc == 40) | (mulc == 70) | (mulc == 80)] = 5  # trees / grass / ag → grass
-    lc[(mulc == 91) | (mulc == 92)] = 7             # wetlands → water
-    lc[lc == 0] = 5                                 # unclassified → grass (safe default)
+    lc[(mulc == 91) | (mulc == 92)] = 7                 # wetlands → water
+    lc[lc == 0] = 5                                     # unclassified → grass
 
     vals, counts = np.unique(lc, return_counts=True)
     pct = {int(v): f"{100*c/lc.size:.1f}%" for v, c in zip(vals, counts)}
     print(f"  Landcover UMEP code distribution: {pct}")
 
     # Trees CDSM: canopy heights only on MULC tree pixels, zero elsewhere.
+    # Cap at 40 m — Durham's tallest real trees are ~30 m; anything higher is
+    # LiDAR noise (laser glint, classifier misalignment) that would generate
+    # spurious shadows in SOLWEIG. Caught downstream during inspection.
     trees_arr = np.zeros_like(dsm, dtype="float32")
     tree_mask = (mulc == 40) & (height > 0)
     trees_arr[tree_mask] = height[tree_mask]
+    n_tall = int((trees_arr > 40).sum())
+    trees_arr[trees_arr > 40] = 0
     if tree_mask.any():
         print(f"  Trees CDSM: {tree_mask.sum():,} canopy pixels  "
-              f"max h={trees_arr.max():.2f}m  mean h={trees_arr[tree_mask].mean():.2f}m")
+              f"max h={trees_arr.max():.2f}m  mean h={trees_arr[trees_arr>0].mean():.2f}m  "
+              f"({n_tall} cells >40m zeroed as noise)")
     else:
         print(f"  WARN: no tree pixels in AOI")
 
