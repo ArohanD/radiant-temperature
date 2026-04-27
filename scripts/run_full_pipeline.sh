@@ -2,6 +2,11 @@
 # Chain Stages 3 → 7 for the current AOI in _aoi.py. Used for overnight runs
 # after pivoting to a new AOI.  Logs to outputs/{AOI_NAME}_pipeline.log.
 #
+# Picks Python via $PYTHON (default `python` on PATH). Set this to use a
+# specific interpreter:
+#     PYTHON=./env/bin/python bash scripts/run_full_pipeline.sh   # laptop conda
+#     bash scripts/run_full_pipeline.sh                           # pod / system
+#
 # Usage: bash scripts/run_full_pipeline.sh
 # Background:  nohup bash scripts/run_full_pipeline.sh &
 #
@@ -10,7 +15,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-AOI_NAME=$(./env/bin/python -c "import sys; sys.path.insert(0,'scripts'); from _aoi import AOI_NAME; print(AOI_NAME)")
+AOI_NAME=$(${PYTHON:-python} -c "import sys; sys.path.insert(0,'scripts'); from _aoi import AOI_NAME; print(AOI_NAME)")
 LOG="outputs/${AOI_NAME}_pipeline.log"
 mkdir -p outputs
 
@@ -38,13 +43,13 @@ run_stage() {
 
 T0=$(date +%s)
 
-run_stage "Stage 3 — build raster inputs"        ./env/bin/python scripts/03_build_rasters.py
-run_stage "Stage 3.5 — Overture patch"           ./env/bin/python scripts/_patch_buildings.py
-run_stage "Stage 4 — baseline SOLWEIG"           ./env/bin/python scripts/04_run_baseline.py
-run_stage "Stage 5 — build scenarios"            ./env/bin/python scripts/05_build_scenario.py
-run_stage "Stage 6 — scenario SOLWEIG runs"      ./env/bin/python scripts/06_run_scenario.py
-run_stage "Stage 7 — figures + headline"         ./env/bin/python scripts/07_make_figures.py
-run_stage "post — regenerate web inspector"      ./env/bin/python scripts/_inspect_web.py
+run_stage "Stage 3 — build raster inputs"        ${PYTHON:-python} scripts/03_build_rasters.py
+run_stage "Stage 3.5 — Overture patch"           ${PYTHON:-python} scripts/_patch_buildings.py
+run_stage "Stage 4 — baseline SOLWEIG"           ${PYTHON:-python} scripts/04_run_baseline.py
+run_stage "Stage 5 — build scenarios"            ${PYTHON:-python} scripts/05_build_scenario.py
+run_stage "Stage 6 — scenario SOLWEIG runs"      ${PYTHON:-python} scripts/06_run_scenario.py
+run_stage "Stage 7 — figures + headline"         ${PYTHON:-python} scripts/07_make_figures.py
+run_stage "post — regenerate web inspector"      ${PYTHON:-python} scripts/_inspect_web.py
 
 T1=$(date +%s)
 say ""

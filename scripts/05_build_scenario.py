@@ -99,6 +99,36 @@ def disk_offsets(radius_px: int) -> list[tuple[int, int]]:
                        for dx in range(-radius_px, radius_px + 1)]
 
 
+def _seed_walls_aspect_cache(out_dir: Path) -> None:
+    """Symlink baseline's walls/ + aspect/ tiles into the scenario's processed_inputs/.
+    Wall height + aspect depend only on Building_DSM (identical across baseline +
+    scenarios), so reusing the baseline outputs lets Stage 6 skip the ~20 min
+    CPU-bound preprocess and go straight to the GPU SOLWEIG main loop.
+    Solweig-gpu's `process_file_parallel` no-ops when the output file already exists
+    (driver.Create overwrites are skipped) — but to be safe we also pre-tile the
+    Building_DSM/DEM inputs the same way so the worker sees a complete state.
+    """
+    base_pp = BASELINE / "processed_inputs"
+    if not (base_pp / "walls").is_dir() or not (base_pp / "aspect").is_dir():
+        print("  no baseline wall/aspect cache found — Stage 6 will recompute "
+              "(run Stage 4 first to populate it)")
+        return
+    scen_pp = out_dir / "processed_inputs"
+    for sub in ("walls", "aspect", "Building_DSM", "DEM"):
+        src = base_pp / sub
+        if not src.is_dir():
+            continue
+        dst = scen_pp / sub
+        dst.mkdir(parents=True, exist_ok=True)
+        for tile in src.iterdir():
+            link = dst / tile.name
+            if link.exists() or link.is_symlink():
+                link.unlink()
+            link.symlink_to(tile.resolve())
+    print(f"  seeded scenario processed_inputs/ from baseline cache "
+          f"(walls + aspect + Building_DSM + DEM tiles symlinked)")
+
+
 def burn_scenario(scenario_name: str, params: dict, sites: gpd.GeoDataFrame) -> None:
     print(f"\n== building scenario '{scenario_name}': {params['description']} ==")
     out_dir = REPO / f"inputs/processed/{AOI_NAME}_scenario_{scenario_name}"
@@ -112,6 +142,7 @@ def burn_scenario(scenario_name: str, params: dict, sites: gpd.GeoDataFrame) -> 
         if _file_sha(src) != _file_sha(dst):
             raise SystemExit(f"  FAIL: copy mismatch for {name}")
     print(f"  copied {len(COPY_FROM_BASELINE)} inputs (verified byte-identical)")
+    _seed_walls_aspect_cache(out_dir)
 
     # Read baseline Trees + Landcover into memory for modification
     with rasterio.open(BASELINE / "Trees.tif") as ds:

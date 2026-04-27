@@ -63,6 +63,41 @@ def building_mask() -> np.ndarray:
     return (lc == 2) | ((dsm - dem) > 2.5)
 
 
+def merged_raster(output_folder: Path, prefix: str = "TMRT") -> tuple[Path, dict]:
+    """Merge multi-tile <prefix>_*.tif outputs into a single full-extent GeoTIFF
+    and return its path. Caches as <prefix>_merged.tif inside output_folder.
+    If only one tile exists (single-tile mode), returns its path directly.
+    Reuses any existing merged file. Used for TMRT and UTCI."""
+    tiles = sorted(output_folder.glob(f"*/{prefix}_*.tif"))
+    if not tiles:
+        raise SystemExit(f"  no {prefix} tiles found under {output_folder}")
+    if len(tiles) == 1:
+        with rasterio.open(tiles[0]) as ds:
+            return tiles[0], dict(transform=ds.transform, bounds=ds.bounds, shape=ds.shape)
+    merged = output_folder / f"{prefix}_merged.tif"
+    if merged.exists():
+        with rasterio.open(merged) as ds:
+            return merged, dict(transform=ds.transform, bounds=ds.bounds, shape=ds.shape)
+    from rasterio.merge import merge as rio_merge
+    handles = [rasterio.open(p) for p in tiles]
+    arr, transform = rio_merge(handles)  # arr shape: (bands, H, W)
+    profile = handles[0].profile.copy()
+    for h in handles:
+        h.close()
+    profile.update(height=arr.shape[1], width=arr.shape[2], transform=transform,
+                   count=arr.shape[0], compress="lzw")
+    with rasterio.open(merged, "w", **profile) as out:
+        out.write(arr)
+    print(f"  merged {len(tiles)} {prefix} tiles → {merged.name} "
+          f"(shape {arr.shape[1]}×{arr.shape[2]}, {arr.shape[0]} bands)")
+    with rasterio.open(merged) as ds:
+        return merged, dict(transform=ds.transform, bounds=ds.bounds, shape=ds.shape)
+
+
+def merged_tmrt(output_folder: Path) -> tuple[Path, dict]:
+    return merged_raster(output_folder, "TMRT")
+
+
 def read_band(path: Path, band: int) -> np.ndarray:
     with rasterio.open(path) as ds:
         return ds.read(band).astype("float32")
@@ -178,10 +213,9 @@ def main() -> None:
     pts = load_planted_points()
     print(f"  {len(pts)} planted points; {is_building.sum():,} building cells")
 
-    base_tmrt_path = BASELINE / "output_folder/0_0/TMRT_0_0.tif"
+    base_tmrt_path, geom = merged_tmrt(BASELINE / "output_folder")
     base_peak = read_band(base_tmrt_path, PEAK_HOUR + 1)
-    with rasterio.open(base_tmrt_path) as ds:
-        bounds = ds.bounds; transform = ds.transform; shape = ds.shape
+    bounds, transform, shape = geom["bounds"], geom["transform"], geom["shape"]
 
     # Near-tree mask: union of 30m buffers around planted points
     from rasterio.features import geometry_mask
@@ -193,7 +227,7 @@ def main() -> None:
     print(f"\n== loading scenario rasters ==")
     scenario_data = {}
     for scen in SCENARIOS:
-        path = REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/output_folder/0_0/TMRT_0_0.tif"
+        path, _ = merged_tmrt(REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/output_folder")
         scen_peak = read_band(path, PEAK_HOUR + 1)
         scenario_data[scen] = {"peak": scen_peak, "tmrt_path": path}
         print(f"  {scen}: {path}")
@@ -260,12 +294,13 @@ def main() -> None:
         })
 
     # UTCI at planted pixels for both scenarios — that's the pedestrian metric
-    base_utci_path = BASELINE / "output_folder/0_0/UTCI_0_0.tif"
+    base_utci_path, _ = merged_raster(BASELINE / "output_folder", "UTCI")
     base_u = read_band(base_utci_path, PEAK_HOUR + 1)
     for h in head:
         scen = h["scenario"]
-        scen_u = read_band(REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/output_folder/0_0/UTCI_0_0.tif",
-                           PEAK_HOUR + 1)
+        scen_utci_path, _ = merged_raster(
+            REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/output_folder", "UTCI")
+        scen_u = read_band(scen_utci_path, PEAK_HOUR + 1)
         d_u = scen_u - base_u
         with rasterio.open(BASELINE / "Trees.tif") as ds:
             base_t = ds.read(1)

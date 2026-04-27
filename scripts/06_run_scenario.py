@@ -24,7 +24,7 @@ setup_geo_env()
 import numpy as np
 import rasterio
 
-from _aoi import AOI_NAME, SIM_DATE
+from _aoi import AOI_NAME, SIM_DATE, TILE_SIZE, TILE_OVERLAP
 
 LOG_FILE = REPO / f"outputs/{AOI_NAME}_scenario_run.log"
 _T0 = time.monotonic()
@@ -75,6 +75,44 @@ def preflight(base: Path) -> None:
     _log(f"  Landcover distribution: {pct}")
 
 
+def _patch_skip_walls_if_cached() -> None:
+    """Monkey-patch solweig_gpu.walls_aspect.run_parallel_processing so it skips
+    the (single-threaded, ~20 min) wall+aspect preprocess when its outputs are
+    already on disk. Stage 5 seeds the scenario cache from baseline (symlinks).
+    Without this, solweig-gpu unconditionally recomputes — wasted on a paid GPU
+    pod where wall-height keeps the GPU idle for the entire CPU stage.
+    Idempotent: re-importing/re-applying is safe.
+    """
+    import os
+    import solweig_gpu.walls_aspect as wa
+    if getattr(wa.run_parallel_processing, "_skip_if_cached_wrap", False):
+        return
+    original = wa.run_parallel_processing
+
+    def run_with_skip(dem_folder, wall_folder, aspect_folder):
+        dem_tiles = [f for f in os.listdir(dem_folder) if f.endswith(".tif")]
+        if not dem_tiles:
+            return original(dem_folder, wall_folder, aspect_folder)
+        os.makedirs(wall_folder, exist_ok=True)
+        os.makedirs(aspect_folder, exist_ok=True)
+        all_cached = True
+        for t in dem_tiles:
+            key = t[len("Building_DSM_"):-len(".tif")] if t.startswith("Building_DSM_") else t[:-4]
+            wall_tile = os.path.join(wall_folder, f"walls_{key}.tif")
+            aspect_tile = os.path.join(aspect_folder, f"aspect_{key}.tif")
+            if not (os.path.exists(wall_tile) and os.path.exists(aspect_tile)):
+                all_cached = False
+                break
+        if all_cached:
+            print(f"[wall+aspect cache hit] skipping recomputation "
+                  f"({len(dem_tiles)} tiles already present in {wall_folder})")
+            return
+        return original(dem_folder, wall_folder, aspect_folder)
+
+    run_with_skip._skip_if_cached_wrap = True
+    wa.run_parallel_processing = run_with_skip
+
+
 def run_one(base: Path) -> int:
     name = base.name.replace(f"{AOI_NAME}_scenario_", "")
     _log(f"running scenario '{name}' in {base}", header=True)
@@ -85,6 +123,7 @@ def run_one(base: Path) -> int:
              f"Delete it to re-run.")
         return 0
 
+    _patch_skip_walls_if_cached()
     from solweig_gpu import thermal_comfort
     t_start = time.monotonic()
     thermal_comfort(
@@ -94,8 +133,10 @@ def run_one(base: Path) -> int:
         dem_filename="DEM.tif",
         trees_filename="Trees.tif",
         landcover_filename="Landcover.tif",
-        tile_size=1000,  # 3×3 grid for 2 km AOI; ~5 GB peak per tile. See 04_run_baseline.py.
-        overlap=100,
+        # MUST match baseline's tile_size for the wall+aspect cache to align
+        # (Stage 5 symlinks). Both pull from _aoi.TILE_SIZE.
+        tile_size=TILE_SIZE,
+        overlap=TILE_OVERLAP,
         use_own_met=True,
         own_met_file=str(base / f"ownmet_{SIM_DATE}.txt"),
         save_tmrt=True,

@@ -73,9 +73,13 @@ def fetch_overture_if_missing() -> None:
     lon_min, lat_min = t.transform(PROCESSING_BBOX[0], PROCESSING_BBOX[1])
     lon_max, lat_max = t.transform(PROCESSING_BBOX[2], PROCESSING_BBOX[3])
     bbox = f"{lon_min},{lat_min},{lon_max},{lat_max}"
+    # Resolve overturemaps from PATH (works on pod / system python). Fall back
+    # to the laptop conda env's bin if PATH lookup fails.
+    overture_bin = shutil.which("overturemaps") or str(REPO / "env/bin/overturemaps")
     print(f"  downloading Overture buildings for bbox {bbox} …")
+    print(f"  using {overture_bin}")
     subprocess.check_call([
-        str(REPO / "env/bin/overturemaps"),
+        overture_bin,
         "download", "--bbox", bbox,
         "-f", "geojson", "--type", "building",
         "-o", str(GEOJSON),

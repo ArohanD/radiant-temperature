@@ -40,7 +40,36 @@ from pyproj import Transformer
 from _aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTER_LON
 
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
-SOLWEIG_OUT = OUT / "output_folder" / "0_0"
+SOLWEIG_OUT = OUT / "output_folder"
+
+
+def _solweig_raster(prefix: str) -> Path:
+    """Return the right SOLWEIG output for a given prefix (TMRT, UTCI, SVF, Shadow).
+    Multi-tile mode produces output_folder/<key>/<prefix>_<key>.tif files; this
+    helper merges them on demand into output_folder/<prefix>_merged.tif (cached).
+    Single-tile mode returns output_folder/0_0/<prefix>_0_0.tif directly.
+    Returns a Path that may not exist (caller checks .exists())."""
+    import rasterio
+    tiles = sorted(SOLWEIG_OUT.glob(f"*/{prefix}_*.tif"))
+    if not tiles:
+        return SOLWEIG_OUT / "0_0" / f"{prefix}_0_0.tif"  # nonexistent placeholder
+    if len(tiles) == 1:
+        return tiles[0]
+    merged = SOLWEIG_OUT / f"{prefix}_merged.tif"
+    if merged.exists():
+        return merged
+    from rasterio.merge import merge as rio_merge
+    handles = [rasterio.open(p) for p in tiles]
+    arr, transform = rio_merge(handles)
+    profile = handles[0].profile.copy()
+    for h in handles:
+        h.close()
+    profile.update(height=arr.shape[1], width=arr.shape[2], transform=transform,
+                   count=arr.shape[0], compress="lzw")
+    with rasterio.open(merged, "w", **profile) as out:
+        out.write(arr)
+    print(f"  merged {len(tiles)} {prefix} tiles → {merged.name}")
+    return merged
 SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
 TREES_GEOJSON_RAW = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
 WEB = OUT / "web"
@@ -602,10 +631,10 @@ def main() -> None:
             print(f"  {png_name:30s} band {band:>2d}  png {png.stat().st_size//1024} KB  "
                   f"bin {png.with_suffix('.bin').stat().st_size//1024} KB")
 
-        tmrt_path = SOLWEIG_OUT / "TMRT_0_0.tif"
-        utci_path = SOLWEIG_OUT / "UTCI_0_0.tif"
-        svf_path = SOLWEIG_OUT / "SVF_0_0.tif"
-        shadow_path = SOLWEIG_OUT / "Shadow_0_0.tif"
+        tmrt_path = _solweig_raster("TMRT")
+        utci_path = _solweig_raster("UTCI")
+        svf_path = _solweig_raster("SVF")
+        shadow_path = _solweig_raster("Shadow")
 
         tmrt_disp = {"kind":"continuous", "unit":"°C", "fmt":".1f"}
         utci_disp = {"kind":"continuous", "unit":"°C UTCI", "fmt":".1f"}

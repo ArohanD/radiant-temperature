@@ -22,13 +22,19 @@ REPO = Path(__file__).resolve().parent.parent
 
 
 def setup_geo_env() -> None:
-    """Set PROJ_DATA / GDAL_DATA when running ./env/bin/python directly (bypasses
-    conda activate hooks). And force `fork` so dynamical_catalog × ProcessPoolExecutor
-    don't re-import __main__ in workers (Day-1 burn).
+    """Set PROJ_DATA / GDAL_DATA only when the local conda env actually has them
+    (laptop case, bypasses conda activate hooks). On a non-conda machine (pod, CI)
+    leave the env vars alone so libgdal/libproj find their system data dirs.
+    Always force `fork` so dynamical_catalog × ProcessPoolExecutor don't re-import
+    __main__ in workers (Day-1 burn).
     """
-    os.environ.setdefault("PROJ_DATA", str(REPO / "env/share/proj"))
-    os.environ.setdefault("PROJ_LIB",  str(REPO / "env/share/proj"))
-    os.environ.setdefault("GDAL_DATA", str(REPO / "env/share/gdal"))
+    proj_dir = REPO / "env/share/proj"
+    gdal_dir = REPO / "env/share/gdal"
+    if proj_dir.is_dir():
+        os.environ.setdefault("PROJ_DATA", str(proj_dir))
+        os.environ.setdefault("PROJ_LIB",  str(proj_dir))
+    if gdal_dir.is_dir():
+        os.environ.setdefault("GDAL_DATA", str(gdal_dir))
     try:
         mp.set_start_method("fork", force=True)
     except RuntimeError:

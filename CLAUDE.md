@@ -4,6 +4,10 @@ You are Claude Code working in this repo (`radiant-temperature`). This file is t
 
 **To enter the project environment:** from the repo root, run `conda activate ./env`. First-time setup: `conda env create -f environment.yml -p ./env`. See `README.md` for the one-liner.
 
+**Operational runbook:** `notes/runbook.md` — end-to-end checklist for running on the laptop, on a RunPod GPU pod, or both. Captures every machine-portability gotcha hit during the 2026-04-26 Hayti run (PROJ data dirs, GDAL Python bindings on pod's Python 3.11, RunPod SSH proxy vs exposed-TCP, tile_size sizing for vCPU count, the wall-cache symlink trick, etc.). **Read it before kicking off a fresh run.**
+
+**Pipeline portability:** All bash wrappers use `${PYTHON:-python}` (laptop overrides with `PYTHON=./env/bin/python`; pod uses system python). `scripts/_lib.setup_geo_env()` only sets `PROJ_DATA`/`GDAL_DATA` when the local conda env actually has those dirs. `scripts/_patch_buildings.py` finds `overturemaps` via PATH. `scripts/_aoi.py` is the single source of truth for `AOI_NAME`, `SIM_DATE`, `TILE_SIZE`, `TILE_OVERLAP` (Stage 4 + Stage 6 import the same values so the wall-cache symlinks align).
+
 ---
 
 ## What this project is
