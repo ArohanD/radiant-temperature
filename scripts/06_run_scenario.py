@@ -6,7 +6,7 @@ Iterates over every `inputs/processed/{AOI_NAME}_scenario_*/` directory, fires
 
 Logs to `outputs/{AOI_NAME}_scenario_run.log` for live monitoring:
 
-    tail -f outputs/durham_downtown_scenario_run.log
+    tail -f outputs/{AOI_NAME}_scenario_run.log
 """
 from __future__ import annotations
 
@@ -113,15 +113,40 @@ def _patch_skip_walls_if_cached() -> None:
     wa.run_parallel_processing = run_with_skip
 
 
+def _scenario_outputs_complete(base: Path) -> tuple[bool, list[str]]:
+    """True iff every expected per-tile TMRT and UTCI output exists. Compares
+    against the Building_DSM tile set produced earlier in the same run, so it
+    works for any tile_size. Returns (complete, missing_paths)."""
+    out = base / "output_folder"
+    dsm_tiles = sorted((base / "processed_inputs" / "Building_DSM").glob("*.tif"))
+    if not out.exists() or not dsm_tiles:
+        return False, []
+    keys = [p.stem.replace("Building_DSM_", "") for p in dsm_tiles]
+    missing = []
+    for k in keys:
+        for prefix in ("TMRT", "UTCI"):
+            tile = out / k / f"{prefix}_{k}.tif"
+            if not tile.exists():
+                missing.append(str(tile.relative_to(base)))
+    return (len(missing) == 0), missing
+
+
 def run_one(base: Path) -> int:
     name = base.name.replace(f"{AOI_NAME}_scenario_", "")
     _log(f"running scenario '{name}' in {base}", header=True)
     preflight(base)
 
     if (base / "output_folder").exists():
-        _log(f"  WARN: {base/'output_folder'} already exists — skipping. "
-             f"Delete it to re-run.")
-        return 0
+        complete, missing = _scenario_outputs_complete(base)
+        if complete:
+            _log(f"  output_folder is complete — skipping (delete it to re-run).")
+            return 0
+        # Partial / corrupted prior run: wipe and re-do. Better than letting
+        # Stage 7 read a half-written tile and produce nonsense ΔTmrt.
+        import shutil
+        _log(f"  output_folder is INCOMPLETE — missing {len(missing)} tile file(s) "
+             f"(e.g., {missing[:3]}). Wiping and re-running.")
+        shutil.rmtree(base / "output_folder")
 
     _patch_skip_walls_if_cached()
     from solweig_gpu import thermal_comfort

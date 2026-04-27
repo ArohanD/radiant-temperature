@@ -144,7 +144,10 @@ def burn_scenario(scenario_name: str, params: dict, sites: gpd.GeoDataFrame) -> 
     print(f"  copied {len(COPY_FROM_BASELINE)} inputs (verified byte-identical)")
     _seed_walls_aspect_cache(out_dir)
 
-    # Read baseline Trees + Landcover into memory for modification
+    # Read baseline Trees + Landcover into memory for modification.
+    # Invariant (verified 2026-04-26): Stage 3 writes Trees.tif as float32, so
+    # the profile carries dtype=float32 and astype here is a no-op. If Stage 3
+    # ever changes that, set trees_profile.update(dtype="float32") before write.
     with rasterio.open(BASELINE / "Trees.tif") as ds:
         trees = ds.read(1).astype("float32")
         trees_profile = ds.profile

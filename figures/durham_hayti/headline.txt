@@ -1,6 +1,6 @@
 == Durham planted-tree intervention — peak hour (15:00 local, 2025-06-23) ==
 
-At the 245 planned planting sites in the 1 km × 1 km downtown tile,
+At the 245 planned planting sites in the 2 km × 2 km durham_hayti tile,
 Durham's program delivers (median across planted pixels):
 
   • year10   ΔTmrt -19.3 °C   ΔUTCI -4.7 °C   (worst pixel ΔTmrt -28.1 °C)

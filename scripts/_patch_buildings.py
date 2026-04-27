@@ -231,7 +231,7 @@ def main() -> None:
     valid_out = (new_dsm != -9999) & valid_dem
     diff = (new_dsm - dem)[valid_out]
     print(f"  (DSM − DEM) p99={np.percentile(diff, 99):.2f}m  "
-          f"max={diff.max():.2f}m  (gate: max < 250 for downtown Durham)")
+          f"max={diff.max():.2f}m  (gate: max < 250 m — sanity check for any Durham AOI)")
     vals, counts = np.unique(new_lc, return_counts=True)
     pct = {int(v): f"{100*c/new_lc.size:.1f}%" for v, c in zip(vals, counts)}
     print(f"  Landcover distribution: {pct}")

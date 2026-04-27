@@ -94,15 +94,16 @@ def _solweig_raster(prefix: str) -> Path:
         return merged
     from rasterio.merge import merge as rio_merge
     handles = [rasterio.open(p) for p in tiles]
-    arr, transform = rio_merge(handles)
+    nodata_val = handles[0].nodata
+    arr, transform = rio_merge(handles, nodata=nodata_val)
     profile = handles[0].profile.copy()
     for h in handles:
         h.close()
     profile.update(height=arr.shape[1], width=arr.shape[2], transform=transform,
-                   count=arr.shape[0], compress="lzw")
+                   count=arr.shape[0], compress="lzw", nodata=nodata_val)
     with rasterio.open(merged, "w", **profile) as out:
         out.write(arr)
-    print(f"  merged {len(tiles)} {prefix} tiles → {merged.name}")
+    print(f"  merged {len(tiles)} {prefix} tiles → {merged.name} (nodata={nodata_val})")
     return merged
 TREES_GEOJSON_RAW = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
 WEB.mkdir(parents=True, exist_ok=True)
@@ -250,7 +251,7 @@ INDEX_HTML = '''<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Durham downtown — patched-raster inspection</title>
+<title>SOLWEIG inspector — patched-raster inspection</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>

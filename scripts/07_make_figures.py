@@ -33,7 +33,7 @@ import numpy as np
 import rasterio
 import geopandas as gpd
 
-from _aoi import AOI_NAME, SIM_DATE, TILE_BBOX
+from _aoi import AOI_NAME, SIM_DATE, TILE_BBOX, AOI_SIZE_KM
 
 BASELINE = REPO / f"inputs/processed/{AOI_NAME}_baseline"
 TREES_GEOJSON = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
@@ -43,8 +43,28 @@ DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
 DIFF_DIR.mkdir(parents=True, exist_ok=True)
 
 SCENARIOS = ["year10", "mature"]
+# PEAK_HOUR is the local hour with the highest tile-mean Tmrt across non-roof
+# pixels. Default 15 = mid-afternoon (typical CONUS summer peak), but main()
+# reassigns it to the discovered peak from the baseline TMRT — so a different
+# AOI / season picks the right hour automatically.
 PEAK_HOUR = 15
 NEAR_TREE_RADIUS_M = 30.0
+
+
+def discover_peak_hour(tmrt_path: Path, is_building: np.ndarray) -> int:
+    """Read all 24 bands of `tmrt_path`, mask roofs, return the hour (0..23)
+    with the highest non-roof tile mean. Used in place of a hardcoded peak
+    so Stage 7 picks the right hour for any AOI / date."""
+    means = []
+    with rasterio.open(tmrt_path) as ds:
+        for h in range(ds.count):
+            b = ds.read(h + 1).astype("float32")
+            v = b[(b > -100) & np.isfinite(b) & ~is_building]
+            means.append(float(v.mean()) if v.size else float("-inf"))
+    peak = int(np.argmax(means))
+    print(f"  peak hour discovered from baseline: {peak:02d}:00 "
+          f"(non-roof tile-mean Tmrt = {means[peak]:.1f}°C)")
+    return peak
 
 
 def load_planted_points() -> gpd.GeoDataFrame:
@@ -80,16 +100,17 @@ def merged_raster(output_folder: Path, prefix: str = "TMRT") -> tuple[Path, dict
             return merged, dict(transform=ds.transform, bounds=ds.bounds, shape=ds.shape)
     from rasterio.merge import merge as rio_merge
     handles = [rasterio.open(p) for p in tiles]
-    arr, transform = rio_merge(handles)  # arr shape: (bands, H, W)
+    nodata_val = handles[0].nodata  # carry through so downstream isfinite/nodata checks see it
+    arr, transform = rio_merge(handles, nodata=nodata_val)  # arr shape: (bands, H, W)
     profile = handles[0].profile.copy()
     for h in handles:
         h.close()
     profile.update(height=arr.shape[1], width=arr.shape[2], transform=transform,
-                   count=arr.shape[0], compress="lzw")
+                   count=arr.shape[0], compress="lzw", nodata=nodata_val)
     with rasterio.open(merged, "w", **profile) as out:
         out.write(arr)
     print(f"  merged {len(tiles)} {prefix} tiles → {merged.name} "
-          f"(shape {arr.shape[1]}×{arr.shape[2]}, {arr.shape[0]} bands)")
+          f"(shape {arr.shape[1]}×{arr.shape[2]}, {arr.shape[0]} bands, nodata={nodata_val})")
     with rasterio.open(merged) as ds:
         return merged, dict(transform=ds.transform, bounds=ds.bounds, shape=ds.shape)
 
@@ -151,7 +172,7 @@ def fig1_three_panel(scenario: str, base_t: np.ndarray, scen_t: np.ndarray,
         ax.set_xticks([]); ax.set_yticks([])
         ax.set_aspect("equal")
 
-    fig.suptitle(f"Durham downtown — {SIM_DATE} — '{scenario}' canopy scenario",
+    fig.suptitle(f"{AOI_NAME} — {SIM_DATE} — '{scenario}' canopy scenario",
                  fontsize=12, y=1.02)
     out = FIG_DIR / f"fig1_three_panel_{scenario}.png"
     fig.savefig(out, dpi=200, bbox_inches="tight")
@@ -172,7 +193,7 @@ def fig2_histogram(diffs_by_scenario: dict[str, np.ndarray]) -> None:
     ax.set_xlabel(f"ΔTmrt at peak hour h={PEAK_HOUR} local (°C)")
     ax.set_ylabel("number of pedestrian-accessible cells")
     ax.set_title(f"Tmrt change near planted sites (≤{NEAR_TREE_RADIUS_M:.0f} m, non-roof)\n"
-                 f"Durham downtown · {SIM_DATE}")
+                 f"{AOI_NAME} · {SIM_DATE}")
     ax.legend()
     ax.set_yscale("log")
     out = FIG_DIR / "fig2_near_tree_histogram.png"
@@ -195,7 +216,7 @@ def fig3_diurnal(hourly: dict[str, list[float]]) -> None:
                label=f"peak hour ({PEAK_HOUR}:00)")
     ax.set_xlabel("Hour (local, EDT)")
     ax.set_ylabel("Tile-mean Tmrt, non-roof cells (°C)")
-    ax.set_title(f"Diurnal mean radiant temperature — Durham downtown · {SIM_DATE}")
+    ax.set_title(f"Diurnal mean radiant temperature — {AOI_NAME} · {SIM_DATE}")
     ax.set_xticks(range(0, 24, 3))
     ax.grid(alpha=0.3, linestyle=":")
     ax.legend(loc="upper left")
@@ -208,12 +229,16 @@ def fig3_diurnal(hourly: dict[str, list[float]]) -> None:
 # ----------------------------------------------------------- main
 
 def main() -> None:
+    global PEAK_HOUR
     print(f"== reading rasters ==")
     is_building = building_mask()
     pts = load_planted_points()
     print(f"  {len(pts)} planted points; {is_building.sum():,} building cells")
 
     base_tmrt_path, geom = merged_tmrt(BASELINE / "output_folder")
+    # Reassign the module-level PEAK_HOUR so fig titles / labels (which read it
+    # at call time) reflect the actual baseline peak, not the hardcoded default.
+    PEAK_HOUR = discover_peak_hour(base_tmrt_path, is_building)
     base_peak = read_band(base_tmrt_path, PEAK_HOUR + 1)
     bounds, transform, shape = geom["bounds"], geom["transform"], geom["shape"]
 
@@ -312,7 +337,8 @@ def main() -> None:
     headline_lines = [
         f"== Durham planted-tree intervention — peak hour ({PEAK_HOUR}:00 local, "
         f"{SIM_DATE}) ==", "",
-        f"At the {len(pts)} planned planting sites in the 1 km × 1 km downtown tile,",
+        f"At the {len(pts)} planned planting sites in the "
+        f"{AOI_SIZE_KM:g} km × {AOI_SIZE_KM:g} km {AOI_NAME} tile,",
         f"Durham's program delivers (median across planted pixels):", "",
     ]
     for h in head:

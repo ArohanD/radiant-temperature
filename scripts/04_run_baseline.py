@@ -1,11 +1,11 @@
-"""Stage 4 — fire the baseline SOLWEIG run for Durham downtown.
+"""Stage 4 — fire the baseline SOLWEIG run for the AOI in scripts/_aoi.py.
 
 Runs `solweig_gpu.thermal_comfort()` against the SOLWEIG-ready rasters built in
 Stage 3 (post the 2026-04-26 canonical-method correction). Logs progress with
 wall-clock timestamps; tees everything to outputs/{AOI_NAME}_baseline_run.log
 so you can monitor from another terminal:
 
-    tail -f outputs/durham_downtown_baseline_run.log
+    tail -f outputs/{AOI_NAME}_baseline_run.log
 
 Expected runtime on this laptop (CPU only, no NVIDIA): ~50 minutes per the
 solweig-gpu JOSS benchmark for a 1500×1500 tile (~55 min on i7-10700).
