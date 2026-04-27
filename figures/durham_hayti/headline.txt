@@ -1,0 +1,10 @@
+== Durham planted-tree intervention — peak hour (15:00 local, 2025-06-23) ==
+
+At the 245 planned planting sites in the 1 km × 1 km downtown tile,
+Durham's program delivers (median across planted pixels):
+
+  • year10   ΔTmrt -19.3 °C   ΔUTCI -4.7 °C   (worst pixel ΔTmrt -28.1 °C)
+  • mature   ΔTmrt -23.6 °C   ΔUTCI -5.8 °C   (worst pixel ΔTmrt -28.7 °C)
+
+Slide-ready: pedestrian heat-stress (UTCI) at planted spots drops
+  4.7–5.8 °C at peak (5–10 yr → mature canopy range)

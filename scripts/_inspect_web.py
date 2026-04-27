@@ -13,14 +13,18 @@ What you get:
   - Right-click on a building to print its Overture height into the console
   - Pitch/rotate enabled — drag with right mouse button or hold Ctrl + drag
 
-Run:
+Run (default — laptop pipeline outputs):
   ./env/bin/python scripts/_inspect_web.py
   cd inputs/processed/{AOI_NAME}_baseline/web && python -m http.server 8765
-  open http://localhost:8765
+
+Run (against a pulled pod-run, isolated from laptop pipeline):
+  INSPECT_RUN_ROOT=outputs/pod_runs/{AOI_NAME}_<timestamp> ./env/bin/python scripts/_inspect_web.py
+  cd outputs/pod_runs/{AOI_NAME}_<timestamp>/web && python -m http.server 8766
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -39,8 +43,38 @@ from pyproj import Transformer
 
 from _aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTER_LON
 
+# Source rasters (Building_DSM, DEM, Trees, Landcover, etc.) always live in
+# the laptop's canonical inputs/processed/{AOI}_baseline/ — they're inputs to
+# every run, identical bytes regardless of which machine produced the SOLWEIG
+# outputs. So OUT is fixed.
 OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
-SOLWEIG_OUT = OUT / "output_folder"
+
+# INSPECT_RUN_ROOT optionally overrides the OUTPUT locations: SOLWEIG outputs
+# (output_folder), scenario rasters, scenario diff rasters, and the web bundle.
+# Use this to point at a pulled pod_run dir (e.g., outputs/pod_runs/{AOI}_<ts>/)
+# and serve a second inspector instance without touching the laptop's live bundle.
+# Layout it expects under the run root:
+#     <run_root>/baseline/output_folder/   (SOLWEIG outputs)
+#     <run_root>/scenario_year10/          (scenario rasters + outputs)
+#     <run_root>/scenario_mature/
+#     <run_root>/scenario_diffs/           (dtmrt_peak_*.tif)
+# The web bundle lands at <run_root>/web/.
+_RUN_ROOT = os.environ.get("INSPECT_RUN_ROOT")
+if _RUN_ROOT:
+    _ROOT = Path(_RUN_ROOT).resolve()
+    SOLWEIG_OUT = _ROOT / "baseline" / "output_folder"
+    SCENARIO_DIRS = {scen: _ROOT / f"scenario_{scen}" for scen in ("year10", "mature")}
+    SCENARIO_DIFF_DIR = _ROOT / "scenario_diffs"
+    WEB = _ROOT / "web"
+    print(f"[inspect_web] INSPECT_RUN_ROOT={_ROOT}")
+    print(f"[inspect_web] source rasters from {OUT}  (always)")
+    print(f"[inspect_web] outputs from {_ROOT}")
+else:
+    SOLWEIG_OUT = OUT / "output_folder"
+    SCENARIO_DIRS = {scen: REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}"
+                     for scen in ("year10", "mature")}
+    SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
+    WEB = OUT / "web"
 
 
 def _solweig_raster(prefix: str) -> Path:
@@ -70,11 +104,13 @@ def _solweig_raster(prefix: str) -> Path:
         out.write(arr)
     print(f"  merged {len(tiles)} {prefix} tiles → {merged.name}")
     return merged
-SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
 TREES_GEOJSON_RAW = REPO / "inputs/raw/durham/trees_planting/durham_trees.geojson"
-WEB = OUT / "web"
-WEB.mkdir(exist_ok=True)
-OVERTURE_GEOJSON = REPO / "inputs/raw/durham/overture/buildings.geojson"
+WEB.mkdir(parents=True, exist_ok=True)
+# Overture GeoJSON is AOI-namespaced (each AOI gets its own bbox download in
+# _patch_buildings.py). Fall back to a non-namespaced legacy filename.
+_overture_default = REPO / f"inputs/raw/durham/overture/buildings_{AOI_NAME}.geojson"
+_overture_legacy  = REPO / "inputs/raw/durham/overture/buildings.geojson"
+OVERTURE_GEOJSON = _overture_default if _overture_default.exists() else _overture_legacy
 
 T_TO_LL = Transformer.from_crs("EPSG:32617", "EPSG:4326", always_xy=True)
 
@@ -739,7 +775,7 @@ def main() -> None:
         base_t = ds.read(1).astype("float32")
         t_bds = ds.bounds
     for scen, vmax_canopy in (("year10", 5.0), ("mature", 12.0)):
-        scen_t_path = REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}/Trees.tif"
+        scen_t_path = SCENARIO_DIRS[scen] / "Trees.tif"
         if not scen_t_path.exists():
             continue
         with rasterio.open(scen_t_path) as ds:
