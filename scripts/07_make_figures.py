@@ -334,6 +334,13 @@ def main() -> None:
         planted = (scen_t != base_t) & np.isfinite(d_u) & ~is_building
         h["planted_median_dutci"] = float(np.median(d_u[planted]))
 
+        # Mirror the dtmrt_peak_<scen>.tif pattern: write a peak-hour ΔUTCI
+        # GeoTIFF for the web inspector to overlay. Roofs masked → NaN.
+        dutci_dst = DIFF_DIR / f"dutci_peak_{scen}.tif"
+        write_diff_geotiff(np.where(is_building, np.nan, d_u).astype("float32"),
+                           base_utci_path, dutci_dst, nodata=np.nan)
+        print(f"  wrote {dutci_dst}  (for the web inspector)")
+
     headline_lines = [
         f"== Durham planted-tree intervention — peak hour ({PEAK_HOUR}:00 local, "
         f"{SIM_DATE}) ==", "",

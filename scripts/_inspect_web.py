@@ -705,38 +705,75 @@ def main() -> None:
                      "continuous", visible=False, display=shadow_disp,
                      vmin=0, vmax=1, cmap="gray", group=G_BASELINE)
 
-    # ---------------- Stage 7 — scenario diff layers ------------------------
+    # ---------------- Stage 7 — scenario diff + absolute layers --------------
+    G_SCENARIO = "Scenario results (Stage 7)"
+    diff_disp = {"kind":"continuous", "unit":"°C", "fmt":"+.1f"}
+    utci_disp = {"kind":"continuous", "unit":"°C UTCI", "fmt":".1f"}
+
+    def _add_diff_overlay(src: Path, layer_id: str, label: str,
+                          vmin: float, vmax: float, vcenter: float,
+                          png_name: str, *, visible: bool, deadband: float = 0.05) -> None:
+        """Render a diverging-colormap overlay for a Δ raster (RdBu_r, NaN→transparent,
+        |Δ|<deadband → transparent). Used for both ΔTmrt and ΔUTCI peak diffs."""
+        if not src.exists():
+            return
+        with rasterio.open(src) as ds:
+            a = ds.read(1).astype("float32")
+            bds = ds.bounds
+        mask = ~np.isfinite(a)
+        from matplotlib import colors as mcolors_
+        norm = mcolors_.TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+        rgba = (matplotlib.colormaps["RdBu_r"](norm(np.where(mask, 0, a))) * 255).astype("uint8")
+        rgba[..., 3] = np.where(mask | (np.abs(a) < deadband), 0, 220)
+        png = WEB / png_name
+        Image.fromarray(rgba, "RGBA").save(png, optimize=True)
+        data = write_data_bin(a, png.with_suffix(".bin"), bds, nodata=None)
+        tl = T_TO_LL.transform(bds.left, bds.top); tr = T_TO_LL.transform(bds.right, bds.top)
+        br = T_TO_LL.transform(bds.right, bds.bottom); bl = T_TO_LL.transform(bds.left, bds.bottom)
+        rasters_meta.append({
+            "id": layer_id, "label": label, "group": G_SCENARIO,
+            "url": png.name, "coords":[list(tl),list(tr),list(br),list(bl)],
+            "visible": visible, "data": data, "display": diff_disp,
+        })
+        print(f"  {png.name:30s}  png {png.stat().st_size//1024} KB")
+
     if SCENARIO_DIFF_DIR.exists():
         print("\n  -- scenario diff layers (Stage 7) --")
-        diff_disp = {"kind":"continuous", "unit":"°C", "fmt":"+.1f"}
         for scen in ("year10", "mature"):
-            src = SCENARIO_DIFF_DIR / f"dtmrt_peak_{scen}.tif"
-            if not src.exists():
-                continue
-            with rasterio.open(src) as ds:
-                a = ds.read(1).astype("float32")
-                bds = ds.bounds
-            # Diverging colormap for cooling/warming. NaN = building (transparent).
-            mask = ~np.isfinite(a)
-            from matplotlib import colors as mcolors_
-            norm = mcolors_.TwoSlopeNorm(vmin=-25, vcenter=0, vmax=5)
-            rgba = (matplotlib.colormaps["RdBu_r"](norm(np.where(mask, 0, a))) * 255).astype("uint8")
-            rgba[..., 3] = np.where(mask | (np.abs(a) < 0.05), 0, 220)
-            png = WEB / f"dtmrt_peak_{scen}.png"
-            Image.fromarray(rgba, "RGBA").save(png, optimize=True)
-            data = write_data_bin(a, png.with_suffix(".bin"), bds, nodata=None)
-            tl = T_TO_LL.transform(bds.left, bds.top); tr = T_TO_LL.transform(bds.right, bds.top)
-            br = T_TO_LL.transform(bds.right, bds.bottom); bl = T_TO_LL.transform(bds.left, bds.bottom)
-            rasters_meta.append({
-                "id": f"dtmrt_{scen}",
-                "label": f"ΔTmrt at peak (scenario={scen} − baseline)",
-                "group": "Scenario results (Stage 7)",
-                "url": png.name, "coords":[list(tl),list(tr),list(br),list(bl)],
-                "visible": (scen == "mature"),
-                "data": data, "display": diff_disp,
-            })
-            print(f"  {png.name:30s}  png {png.stat().st_size//1024} KB  "
-                  f"bin {png.with_suffix('.bin').stat().st_size//1024} KB")
+            _add_diff_overlay(
+                SCENARIO_DIFF_DIR / f"dtmrt_peak_{scen}.tif",
+                f"dtmrt_{scen}",
+                f"ΔTmrt at peak (scenario={scen} − baseline)",
+                vmin=-25, vmax=5, vcenter=0,
+                png_name=f"dtmrt_peak_{scen}.png",
+                visible=(scen == "mature"),
+            )
+            _add_diff_overlay(
+                SCENARIO_DIFF_DIR / f"dutci_peak_{scen}.tif",
+                f"dutci_{scen}",
+                f"ΔUTCI 'feels-like' at peak (scenario={scen} − baseline)",
+                vmin=-8, vmax=2, vcenter=0,
+                png_name=f"dutci_peak_{scen}.png",
+                visible=False,
+                deadband=0.02,
+            )
+
+    # Absolute scenario UTCI at peak hour — lets the user compare side-by-side
+    # with the baseline UTCI (same colormap range).
+    print("\n  -- scenario absolute UTCI at peak (Stage 6) --")
+    for scen in ("year10", "mature"):
+        scen_utci = SCENARIO_DIRS[scen] / "output_folder" / "UTCI_merged.tif"
+        if not scen_utci.exists():
+            # Fallback: single-tile mode
+            single = SCENARIO_DIRS[scen] / "output_folder" / "0_0" / "UTCI_0_0.tif"
+            scen_utci = single if single.exists() else None
+        if scen_utci is None:
+            print(f"  no scenario UTCI raster found for '{scen}' — skipping")
+            continue
+        add_band(f"utci_h15_{scen}", f"UTCI 'feels-like' at 15:00 ({scen} scenario)",
+                 scen_utci, 16, f"utci_h15_{scen}.png",
+                 "continuous", visible=False, display=utci_disp,
+                 vmin=20, vmax=50, cmap="magma", group=G_SCENARIO)
 
     overture_path = stage_overture()
 
