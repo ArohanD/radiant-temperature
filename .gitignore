@@ -235,5 +235,8 @@ outputs/
 *.aux.xml
 figures/*.png
 
+# Archive — everything we cut from the main repo surface
+archive/
+
 # Credentials (CDS API key)
 .cdsapirc

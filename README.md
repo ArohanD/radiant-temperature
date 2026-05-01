@@ -1,24 +1,76 @@
 # radiant-temperature
 
-Durham Hayti tree-planting pedestrian-heat study. SOLWEIG Tmrt modeling, 5-day sprint.
+A reproducible analysis of the pedestrian heat impact of Durham's 2025–2028
+street tree planting program in the Hayti neighborhood. The study quantifies
+the change in mean radiant temperature (Tmrt) and the Universal Thermal
+Climate Index (UTCI) at 1 m resolution on a heatwave day, comparing a
+baseline run against two canopy growth scenarios.
 
-Full project context (scientific approach, data sources, gotchas, timeline): see [`CLAUDE.md`](./CLAUDE.md).
+The analysis uses the SOLWEIG model (Lindberg et al., 2008) accelerated on
+GPU via `solweig-gpu` (Kamath et al., 2026). Inputs are derived from public
+data: NC Phase 3 LiDAR for terrain and structures, Overture Foundation
+buildings for footprint correction, EnviroAtlas land cover, NOAA HRRR
+analysis for meteorological forcing, and the Durham Open Data Portal for the
+locations of planned plantings.
 
----
+## Headline finding
 
-## Reproducing the current state from a fresh clone
+For the 245 planned planting sites within a 2 km × 2 km tile centered on
+Hayti, peak-hour ΔUTCI at the planted pixels falls between −4.7 °C (year 10
+canopy, 5 m height) and −5.8 °C (mature canopy, 12 m height) on June 23, 2025
+(99 °F at KRDU, clear skies). About 58 percent of planted pixels cross at
+least one WHO heat-stress category, typically from extreme to very strong
+heat stress. The worst-cooled single pixel falls by 10 °C. Tile-wide mean
+ΔUTCI is −0.01 °C, indicating that the intervention is local rather than
+neighborhood scale.
 
-Everything below assumes a Linux x86_64 machine with `bash`, `git`, `curl`, and `unzip`. Tested on Ubuntu with kernel 6.8. Should also work on macOS arm64 with the equivalent miniforge installer.
+![SOLWEIG inputs and outputs](notebooks/assets/methods_solweig.png)
 
-### 1. Install miniforge (skip if already installed)
+## Repository tour
 
-```bash
-curl -L -o /tmp/miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
-bash /tmp/miniforge.sh   # accept defaults; answer "yes" to conda init
-exec $SHELL              # reload so `conda` resolves on PATH
-```
+The analysis is organised as four marimo notebooks under `notebooks/`. Each
+notebook is a regular Python file. Cells are idempotent: an expensive step
+that has already produced its output is skipped on re-run.
 
-### 2. Clone and create the project-local env
+| notebook | purpose |
+|---|---|
+| `0_fetch_data.py` | Downloads Durham planting sites, EnviroAtlas land cover, KRDU observations, HRRR meteorological forcing, and Overture buildings for the AOI. Ends with a MapLibre view of the raw inputs. |
+| `2_prepare_buildings.py` | Builds the four SOLWEIG-ready rasters from raw LiDAR, applies the Overture footprint patch to the building DSM, and shows pre- and post-patch inspector views. |
+| `1_run_scenarios.py` | Runs SOLWEIG for the baseline, then burns canopy disks for the year10 and mature scenarios and runs SOLWEIG for each. Includes the baseline sanity report and a final inspector that overlays every output layer. |
+| `3_analyze_results.py` | Computes the headline statistics, regenerates the figures used in the conference deck, and captures slide-ready PNG screenshots of the inspector. |
+
+Reusable code lives in `src/`:
+
+| module | summary |
+|---|---|
+| `src/aoi.py` | AOI primitives (centre, size, simulation date, tile bounding boxes). Single source of truth for relocation. |
+| `src/geo.py` | PROJ and GDAL environment setup. |
+| `src/met.py` | HRRR analysis fetch and UMEP own-met file writer. |
+| `src/buildings.py` | LiDAR DSM and DEM via PDAL, MULC reproject, Overture patch. |
+| `src/scenarios.py` | Canopy disk burn-in for the two scenarios. |
+| `src/solweig_runner.py` | Wrapper around `solweig_gpu.thermal_comfort` with idempotency and wall-cache reuse. |
+| `src/evaluate.py` | Physical sanity checks and headline statistics. |
+| `src/figures.py` | Every figure used in the conference deck. |
+| `src/inspector.py` | Self-contained MapLibre inspector bundle, daemon HTTP server, and headless screenshot capture. |
+| `src/compare_obs.py` | Cross-checks of HRRR forcing against KRDU observations and Open-Meteo reanalysis. |
+
+The folder `archive/` holds prior project artefacts (the 5-day sprint scripts,
+slide deck, presentation notes, decision logs, and historical pod runs) and
+is gitignored.
+
+## Getting started
+
+### 1. Prerequisites
+
+- Linux or macOS (Windows requires WSL2).
+- A `conda` or `mamba` installation. Miniforge is recommended.
+- Roughly 10 GB of free disk for the conda environment and cached inputs.
+- `git` on PATH. The conda environment provides `gdal-bin` and `pdal`.
+- Optional: an NVIDIA GPU with CUDA. Without one, SOLWEIG falls back to CPU.
+- Optional: `google-chrome` on PATH if the headless screenshot cell in
+  notebook 3 is to be exercised.
+
+### 2. Create the environment
 
 ```bash
 git clone <this-repo> radiant-temperature
@@ -27,142 +79,125 @@ conda env create -f environment.yml -p ./env
 conda activate ./env
 ```
 
-The env lives at `./env/` (~3 GB, gitignored). Deleting the repo deletes the env. Activate from the repo root every session — `conda activate ./env`.
+The environment installs `marimo` along with `solweig-gpu`, `rasterio`,
+`geopandas`, `pdal`, `pytorch`, `dynamical-catalog`, and `overturemaps`.
 
-### 3. Set up the Copernicus CDS API key
-
-The CDS key is **project-local** (gitignored), not in `~/.cdsapirc`. This keeps credentials out of the home directory and prevents leaking into other projects.
-
-a. Get a key: register at <https://cds.climate.copernicus.eu/>, accept the ERA5 license, copy your personal API token from the user profile page.
-
-b. Create `./.cdsapirc` in the repo root:
-
-```
-url: https://cds.climate.copernicus.eu/api
-key: <your-token-here>
-```
-
-c. Lock down permissions and tell `cdsapi` where to find the file (env-scoped, so it only applies when this env is active):
+Verify the install:
 
 ```bash
-chmod 600 .cdsapirc
-conda env config vars set CDSAPI_RC="$(pwd)/.cdsapirc"
-conda deactivate && conda activate ./env   # reload env vars
+python -c "import marimo, solweig_gpu, rasterio, geopandas, pdal; print('ok')"
 ```
 
-Verify: `python -c "import cdsapi; cdsapi.Client()"` should not raise.
+### 3. Open the first notebook
 
-### 4. Validate the environment (Day-1 gate, part 1)
+Marimo notebooks are plain Python files. Two invocation modes are useful.
 
 ```bash
-python scripts/01_env_validate.py
+# Edit interactively; opens a reactive UI in the browser.
+marimo edit notebooks/0_fetch_data.py
+
+# Run headless and inspect outputs on disk.
+marimo run notebooks/0_fetch_data.py
 ```
 
-Expected output: version lines for numpy, rasterio, geopandas, pdal, gdal, torch, cdsapi, solweig_gpu, then `thermal_comfort imported: <function>` and `CUDA available: False` (this machine is CPU-only).
+Both modes print a local URL (default `http://localhost:2718`).
 
-### 5. Download the SOLWEIG-GPU sample dataset
+### 4. Recommended execution order
 
-Zenodo DOI: [10.5281/zenodo.18561860](https://doi.org/10.5281/zenodo.18561860) (Austin TX, 2020-08-13, ~3367×3913 @ 2 m, EPSG:32614).
+1. `notebooks/0_fetch_data.py` retrieves everything that does not require
+   PDAL.
+2. `notebooks/2_prepare_buildings.py` performs the LiDAR retrieval and the
+   Overture-gated building DSM patch. This is the slowest notebook on a
+   first run.
+3. `notebooks/1_run_scenarios.py` runs SOLWEIG for the baseline and both
+   scenarios. CPU runs of the 2 km × 2 km Hayti tile take roughly 30 minutes
+   per scenario. An A6000 finishes in roughly 2 minutes per scenario.
+4. `notebooks/3_analyze_results.py` regenerates the figures and writes the
+   headline file under `outputs/{prefix}/`.
+
+The numbering reflects the conceptual reading order. The execution order is
+0 → 2 → 1 → 3 because notebook 1 needs the patched `Building_DSM.tif`
+produced by notebook 2.
+
+### 5. Quick smoke test
 
 ```bash
-mkdir -p inputs/raw/sample
-cd inputs/raw/sample
-curl -L -o Input_rasters.zip https://zenodo.org/records/18561860/files/Input_rasters.zip
-unzip Input_rasters.zip
-curl -L -O https://zenodo.org/records/18561860/files/ownmet_Forcing_data.txt
-curl -L -O https://zenodo.org/records/18561860/files/README.txt
-cd ../../..
+python -c "from src.aoi import AOI_NAME, SIM_DATE; print(AOI_NAME, SIM_DATE)"
+# durham_hayti 2025-06-23
 ```
 
-After this you should have:
-```
-inputs/raw/sample/
-├── Input_rasters/
-│   ├── Building_DSM.tif
-│   ├── DEM.tif
-│   ├── Trees.tif
-│   └── Landcover.tif
-├── ownmet_Forcing_data.txt
-└── README.txt
-```
+### 6. Selecting a different AOI
 
-### 6. Run the sample (Day-1 gate, part 2)
+Configuration lives in `src/aoi.py`. Edit `AOI_NAME`, `AOI_CENTER_LAT`,
+`AOI_CENTER_LON`, `AOI_SIZE_KM`, and `SIM_DATE`, then run all four notebooks
+in order. Outputs are namespaced by `OUTPUT_PREFIX`, which defaults to
+`AOI_NAME` and may be overridden via the environment variable of the same
+name or via the prefix input field at the top of notebooks 1 and 3.
 
-```bash
-python scripts/_sample_run.py
-```
+## Data sources
 
-Crops the sample to a 500×500 central window and runs `thermal_comfort()` on CPU. Takes **~3.5 min** on a modern laptop.
+| source | role | notes |
+|---|---|---|
+| NC Phase 3 LiDAR (2015) via NOAA dataset 6209 | First-return DSM, ground DEM | Native EPSG:6346, metres. Pulled by PDAL via Entwine point tile. |
+| Overture Foundation buildings | Footprint and height for the DSM patch | GeoJSON at 4326. |
+| EnviroAtlas Durham 1 m MULC (2010) | Land cover, reclassified to UMEP codes | EPSG:26917, reprojected to 32617. |
+| Durham Open Data — Trees & Planting Sites | Locations of planned plantings | Filtered to `present == "Planting Site"`. |
+| NOAA HRRR analysis via `dynamical-catalog` | Hourly meteorological forcing | Anonymous S3, no API key required. |
+| Iowa Mesonet KRDU ASOS | Validation observations | Used to confirm the simulation date selection and to cross-check forcing. |
 
-Outputs land at:
-```
-inputs/processed/sample_crop/
-├── Building_DSM.tif, DEM.tif, Trees.tif, Landcover.tif   (cropped inputs)
-├── ownmet_Forcing_data.txt                               (copied)
-├── processed_inputs/                                     (SVF, walls, aspect — solweig-gpu intermediates)
-└── output_folder/0_0/
-    ├── TMRT_0_0.tif   (24-band, hourly Tmrt, °C; band N = hour N−1 local)
-    └── UTCI_0_0.tif   (24-band, hourly UTCI, °C)
-```
-
-### 7. Verify the sample output
-
-Quick numerical sanity check:
-
-```bash
-python - <<'PY'
-import numpy as np, rasterio
-with rasterio.open("inputs/processed/sample_crop/output_folder/0_0/TMRT_0_0.tif") as ds:
-    for b, hr in [(8, "07:00"), (14, "13:00"), (20, "19:00")]:
-        a = ds.read(b); a = a[np.isfinite(a)]
-        print(f"  band {b:2d} ({hr}): min={a.min():.1f} mean={a.mean():.1f} max={a.max():.1f} std={a.std():.2f}")
-PY
-```
-
-Expected (within rounding):
-```
-band  8 (07:00): min=19.8 mean=20.7 max=21.9 std=0.41
-band 14 (13:00): min=34.4 mean=63.3 max=78.4 std=10.48
-band 20 (19:00): min=32.3 mean=39.2 max=45.5 std=3.49
-```
-
-The key signal is **std ≈ 10°C at 13:00** — proves shadows are differentiating sunlit from shaded pixels.
-
-Visual check: open `TMRT_0_0.tif` in QGIS, render band 14 with a heat ramp. You should see hot streets and roofs (red/orange), cool tree canopy and building shadows (blue). Tile is in north Austin (≈30.332°N, −97.721°W) — sanity-check against satellite imagery.
-
-For more on what the numbers mean (Tmrt vs UTCI vs air temperature), see `notes/sample_validation.md`.
-
----
-
-## Repo layout
+## Folder layout after a complete run
 
 ```
 radiant-temperature/
-├── CLAUDE.md               # full project brief — scientific spec
-├── README.md               # this file
-├── environment.yml         # conda env source of truth
-├── .cdsapirc               # CDS API key (gitignored, you create this)
-├── env/                    # project-local conda env (gitignored)
-├── scripts/
-│   ├── 01_env_validate.py  # Day-1 gate: dependency smoke test
-│   ├── _sample_run.py      # Day-1 gate: SOLWEIG sample run (underscore = scratch, not pipeline)
-│   ├── 02_download_data.py … 07_make_figures.py   # pipeline stubs (Days 2–5)
+├── README.md
+├── environment.yml
+├── notebooks/
+│   ├── 0_fetch_data.py
+│   ├── 1_run_scenarios.py
+│   ├── 2_prepare_buildings.py
+│   ├── 3_analyze_results.py
+│   └── assets/
+├── src/
 ├── inputs/
-│   ├── raw/                # downloads as-acquired (gitignored)
-│   └── processed/          # aligned rasters + outputs (gitignored)
-├── outputs/                # gitignored
-├── figures/                # PNGs gitignored; figure code tracked
-└── notes/                  # tracked notes
+│   ├── raw/durham/
+│   └── processed/
+│       ├── {prefix}_baseline/
+│       ├── {prefix}_scenario_year10/
+│       └── {prefix}_scenario_mature/
+├── outputs/
+│   └── {prefix}/
+│       ├── headline.txt
+│       ├── figures/
+│       └── diffs/
+├── figures/
+└── archive/   (gitignored)
 ```
 
-## Pipeline (forward-looking, not yet implemented)
+## Citations
 
-Scripts in `scripts/` run in numeric order:
+- Lindberg, F., Holmer, B., Thorsson, S. (2008). SOLWEIG 1.0 — Modelling
+  spatial variations of 3D radiant fluxes and mean radiant temperature in
+  complex urban settings. *International Journal of Biometeorology* 52,
+  697–713.
+- Lindberg, F., Grimmond, C. S. B. (2011). The influence of vegetation and
+  building morphology on shadow patterns and mean radiant temperatures in
+  urban areas. *Theoretical and Applied Climatology* 105, 311–323.
+- Bröde, P., Fiala, D., Błażejczyk, K., Holmér, I., Jendritzky, G., Kampmann,
+  B., Tinz, B., Havenith, G. (2012). Deriving the operational procedure for
+  the Universal Thermal Climate Index (UTCI). *International Journal of
+  Biometeorology* 56, 481–494.
+- Kamath, H. G., Sudharsan, N., Singh, M., Wallenberg, N., Lindberg, F.,
+  Niyogi, D. (2026). SOLWEIG-GPU: GPU-Accelerated Thermal Comfort Modeling
+  Framework for Urban Digital Twins. *Journal of Open Source Software*
+  11(118), 9535.
+- Lindberg, F., Grimmond, C. S. B., Gabey, A., Huang, B., Kent, C. W., Sun,
+  T., et al. (2018). Urban Multi-scale Environmental Predictor (UMEP): An
+  integrated tool for city-based climate services. *Environmental Modelling
+  and Software* 99, 70–87.
 
-1. `01_env_validate.py` — **done** (Day 1).
-2. `02_download_data.py` — Day 2. ERA5, NC LiDAR, Durham Trees GeoJSON, EnviroAtlas MULC.
-3. `03_build_rasters.py` — Day 2–3. Aligned DEM/DSM/CDSM/landcover at 1 m EPSG:32617 + UMEP met file.
-4. `04_run_baseline.py` — Day 3. Baseline Tmrt for the Hayti tile.
-5. `05_build_scenario.py` — Day 4. Inject Durham's planned plantings.
-6. `06_run_scenario.py` — Day 4. Scenario Tmrt.
-7. `07_make_figures.py` — Day 5. Three figures + headline ΔTmrt stat.
+## Acknowledgements
+
+Data products from Durham Urban Forestry, the United States Environmental
+Protection Agency (EnviroAtlas), NC OneMap, the National Oceanic and
+Atmospheric Administration, and the Overture Foundation made this analysis
+possible.

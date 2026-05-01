@@ -1,10 +1,10 @@
-name: durham-solweig  # informational only — env is installed by path (./env), not by name
+name: durham-solweig  # informational; the env installs to ./env via path
 channels:
   - conda-forge
 dependencies:
-  - python=3.12        # bumped from 3.10 to satisfy icechunk/dynamical_catalog
+  - python=3.12
   - gdal
-  - pytorch            # CPU build — no NVIDIA GPU on this machine
+  - pytorch
   - timezonefinder
   - matplotlib
   - sip
@@ -12,11 +12,15 @@ dependencies:
   - python-pdal
   - rasterio
   - geopandas
-  - numpy<2          # solweig-gpu's sun_position assigns numpy scalars to array slots (sun_position.py:974); numpy 2 disallows
+  - numpy<2
   - xarray
   - zarr
-  - jupyter
+  - pillow
+  - shapely
+  - pyproj
   - pip
   - pip:
       - solweig-gpu
-      - dynamical-catalog  # historical met (HRRR analysis) via icechunk; replaces cdsapi/ERA5
+      - dynamical-catalog
+      - overturemaps
+      - marimo
