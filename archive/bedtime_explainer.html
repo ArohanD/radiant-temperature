@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Heat Under Your Feet — A Bedtime Explainer</title>
+<style>
+  @page { size: letter; margin: 0.7in 0.85in; }
+  html, body {
+    font-family: "Georgia", "Iowan Old Style", "Times New Roman", serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: #1f2937;
+    background: #ffffff;
+    margin: 0;
+  }
+  body { padding: 0; }
+
+  h1.title {
+    font-family: "Inter", sans-serif;
+    font-size: 36pt;
+    color: #14352b;
+    margin: 18pt 0 6pt;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .subtitle {
+    font-family: "Inter", sans-serif;
+    font-size: 14pt;
+    color: #6b7280;
+    font-style: italic;
+    margin-bottom: 28pt;
+    border-bottom: 1px solid #d8d2c5;
+    padding-bottom: 14pt;
+  }
+
+  h1 {
+    font-family: "Inter", sans-serif;
+    font-size: 20pt;
+    color: #14352b;
+    margin-top: 22pt;
+    margin-bottom: 4pt;
+    letter-spacing: -0.012em;
+    page-break-before: auto;
+    page-break-after: avoid;
+  }
+  h1.first { page-break-before: auto; }
+
+  h1 .ch {
+    display: block;
+    font-size: 10pt;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #c0533e;
+    font-weight: 500;
+    margin-bottom: 4pt;
+  }
+
+  h2 {
+    font-family: "Inter", sans-serif;
+    font-size: 14pt;
+    color: #1d4f3f;
+    margin-top: 18pt;
+    margin-bottom: 4pt;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin: 0 0 10pt;
+    text-align: justify;
+    hyphens: auto;
+  }
+
+  p.lead {
+    font-size: 13pt;
+    color: #1a1f2c;
+    line-height: 1.5;
+  }
+
+  .pullquote {
+    font-family: "Inter", sans-serif;
+    font-size: 13pt;
+    color: #14352b;
+    background: #fdf6f1;
+    border-left: 3px solid #e76f51;
+    padding: 10pt 14pt;
+    margin: 12pt 0;
+    page-break-inside: avoid;
+  }
+
+  figure {
+    margin: 14pt 0;
+    page-break-inside: avoid;
+    text-align: center;
+  }
+  figure img {
+    max-width: 100%;
+    max-height: 3.4in;
+    border: 1px solid #e5e1d8;
+    border-radius: 3px;
+  }
+  figure img.tall { max-height: 4.0in; }
+  figure img.wide { max-height: 2.4in; }
+  figure figcaption {
+    font-size: 9.5pt;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 6pt;
+    line-height: 1.4;
+    text-align: left;
+    padding: 0 24pt;
+  }
+
+  pre {
+    font-family: "JetBrains Mono", "Menlo", "Consolas", monospace;
+    font-size: 8.5pt;
+    background: #f4f1ec;
+    border-left: 3px solid #1d4f3f;
+    padding: 8pt 10pt;
+    line-height: 1.45;
+    overflow-x: hidden;
+    page-break-inside: avoid;
+    margin: 10pt 0;
+    color: #14352b;
+  }
+  pre .c { color: #6b7280; font-style: italic; }
+  pre .s { color: #c0533e; }
+  pre .k { color: #1d4f3f; font-weight: 600; }
+
+  code {
+    font-family: "JetBrains Mono", "Menlo", "Consolas", monospace;
+    font-size: 9.5pt;
+    background: #f4f1ec;
+    color: #14352b;
+    padding: 1pt 3pt;
+    border-radius: 2px;
+  }
+
+  .script-header {
+    font-family: "Inter", sans-serif;
+    font-size: 9.5pt;
+    color: #fdfcfa;
+    background: #1d4f3f;
+    padding: 4pt 10pt 4pt;
+    margin: 14pt 0 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    border-radius: 3px 3px 0 0;
+    page-break-after: avoid;
+  }
+  .script-header + pre, .script-header + p {
+    margin-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  ul { margin: 4pt 0 10pt; padding-left: 20pt; }
+  li { margin-bottom: 4pt; }
+  li::marker { color: #1d4f3f; }
+
+  .toc {
+    background: #f4f1ec;
+    border-radius: 4px;
+    padding: 18pt 24pt;
+    margin: 18pt 0 24pt;
+    page-break-inside: avoid;
+  }
+  .toc h2 {
+    margin-top: 0;
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #6b7280;
+  }
+  .toc ol {
+    margin: 0;
+    padding-left: 22pt;
+    font-family: "Inter", sans-serif;
+    font-size: 11pt;
+  }
+  .toc ol li { margin-bottom: 5pt; color: #14352b; }
+  .toc ol li span.subtitle-small {
+    color: #6b7280;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  strong { color: #c0533e; font-weight: 600; }
+  em { color: inherit; }
+
+  .smallcaps {
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="title">The Heat Under Your Feet</h1>
+<p class="subtitle">A bedtime walkthrough of the Hayti tree-cooling project, written for someone who wants the whole story</p>
+
+<p class="lead">You have spent a week building a model of how 245 trees will cool a Durham neighborhood on the hottest day of summer. You did most of it with an AI typing alongside you, which is fast but leaves potholes. This document is a walk back through those potholes. It is not a paper, and it is not a tutorial. Think of it as a friend explaining the parts you nodded at without quite catching, the night before you have to explain the whole thing to someone else.</p>
+
+<div class="toc">
+<h2>Table of contents</h2>
+<ol>
+  <li>One hot afternoon in Hayti <span class="subtitle-small">(why heat is more than air temperature)</span></li>
+  <li>The two thermometers <span class="subtitle-small">(Tmrt, UTCI, and what your body actually feels)</span></li>
+  <li>The map your phone doesn't show <span class="subtitle-small">(LiDAR, DEMs, and the 2015 NC scan)</span></li>
+  <li>Building the neighborhood from scratch <span class="subtitle-small">(five raster layers and what they mean)</span></li>
+  <li>The trees that weren't buildings <span class="subtitle-small">(the bug that taught us the most)</span></li>
+  <li>Tracing sunbeams <span class="subtitle-small">(how SOLWEIG actually works)</span></li>
+  <li>Pretending the trees are already there <span class="subtitle-small">(scenario design)</span></li>
+  <li>Reading the result <span class="subtitle-small">(diff maps, histograms, category transitions)</span></li>
+  <li>The honest bits <span class="subtitle-small">(what the model can't tell you)</span></li>
+  <li>A tour through the code <span class="subtitle-small">(seven scripts, in order)</span></li>
+</ol>
+</div>
+
+<h1 class="first"><span class="ch">Chapter 1</span>One hot afternoon in Hayti</h1>
+
+<p>Stand on a sidewalk in downtown Durham at three o'clock on a clear June afternoon. The air temperature reads thirty-six degrees Celsius, which is just below ninety-seven Fahrenheit. That is hot, but the number on the weather app is the least of your problems.</p>
+
+<p>The asphalt under your shoes is closer to seventy degrees Celsius. You could fry an egg on it, although you would not enjoy the cleanup. The brick wall on the other side of the parking lot is roasting like an oven door, throwing long-wave heat at your neck whether you stand in the sun or not. The metal roof of the bus stop is blasting infrared down on the people waiting for the 5B. You feel cooked because you are being cooked, from above by the sun and from every other direction by everything the sun has been hitting all day.</p>
+
+<p>Now walk thirty meters into the shade of an oak. The air did not get cooler in those thirty meters, not really. The relative humidity is the same. The wind is the same. But the cooking stops. The heat load on your skin drops by maybe a third. Your body responds within seconds.</p>
+
+<p class="pullquote">This project is about predicting that thirty-meter walk for 245 trees that have not been planted yet, on a 2 km square of Hayti, on the hottest day of last summer.</p>
+
+<p>Hayti is a neighborhood about a mile south of Duke University. It was a center of Black commerce and culture in the early twentieth century. In the 1930s, the federal government drew red lines around it on a Home Owners' Loan Corporation map and labeled it "hazardous" for mortgage lending. That is where the word redlining comes from. Banks stopped giving home loans there. Capital dried up. By the 1960s the city ran the Durham Freeway through the middle of the neighborhood and demolished about half the houses. The result is a neighborhood with a measurable canopy gap compared to the rest of the city, which means a measurable heat gap.</p>
+
+<p>The City of Durham knows this. Between 2025 and 2028 it is planting 8,500 trees, paid for by a $5.3 million USDA grant, and 85 percent of those trees go to eight EPA-designated priority neighborhoods. Hayti is one of them. The Open Data Portal lists 245 specific planned planting sites inside our 2 km tile.</p>
+
+<p>The question we are answering is narrow on purpose: <strong>at the spots where Durham plants those 245 trees, how much cooler will it feel for someone walking past, on a hot day, after the trees grow up?</strong></p>
+
+<p>The answer turns out to be about 5 to 6 degrees Celsius of "feels-like" cooling, conditional on every tree surviving to maturity. That is enough to drop most of those spots by one category on the World Health Organization heat-stress scale. It is not a citywide cooling program. It is 245 specific patches of relief. Knowing the difference between those two framings is most of the point.</p>
+
+<h1><span class="ch">Chapter 2</span>The two thermometers</h1>
+
+<p>There are two ways to measure heat outside. The first is the one on your phone. The second is the one your body uses. They disagree, and the gap between them is most of what makes summer in a city dangerous.</p>
+
+<h2>Air temperature, briefly</h2>
+
+<p>Air temperature is the heat content of the air. A weather thermometer is shielded from direct sunlight on purpose, so the only thing it measures is the air. On our June 23rd, that thermometer read 36.5 °C at peak.</p>
+
+<p>Air temperature is a fine number for some questions. It tells you whether your tomato plants will survive the night. It tells you whether ice on a bridge will melt. But it tells you very little about whether you will get heatstroke walking to the bus stop, because your body does not respond to air temperature alone. It responds to total heat load.</p>
+
+<h2>Mean radiant temperature (Tmrt)</h2>
+
+<p>Stand outside on a sunny day. Your skin is being hit by:</p>
+
+<ul>
+<li>Direct sunlight from above (around 900 watts per square meter on a clear summer day, which is about the heat output of a microwave on full power).</li>
+<li>Diffuse sunlight scattered off the sky.</li>
+<li>Long-wave infrared from the ground (hot pavement is a heat source for hours after the sun has moved).</li>
+<li>Long-wave infrared from buildings, trees, parked cars, fences, every solid surface you can see.</li>
+<li>Long-wave radiation from the sky itself, which is colder than the ground but not zero.</li>
+</ul>
+
+<p>If you add up all that radiation arriving from every direction, then ask "what air temperature, in a calm shaded room, would give your skin the same total energy bath?" — the answer is the <em>mean radiant temperature</em>, or Tmrt. On asphalt in direct sun on our hot day, Tmrt at our planted pixels was around 69 °C. On grass under a tree, it was 47 °C. The difference between standing in the sun and standing in the shade, measured this way, is more than 20 °C.</p>
+
+<p>Tmrt is the number SOLWEIG calculates per pixel per hour. It is the number that explains why shade matters.</p>
+
+<h2>UTCI: feels-like, with rules</h2>
+
+<p>Tmrt by itself is hard to interpret. Most people do not know whether 60 °C of mean radiant temperature is bad. So scientists built a formula on top of it called the Universal Thermal Climate Index, or UTCI. You feed it four things: air temperature, relative humidity, wind speed, and Tmrt. It returns one number in degrees Celsius. That number is what the temperature would have to be in a reference environment (calm, mid-humidity, no direct sun) to produce the same physiological strain on a typical adult body.</p>
+
+<p>UTCI has six categories, set by Bröde et al. in 2012:</p>
+
+<ul>
+<li>Below 9 °C: cold stress</li>
+<li>9 to 26: no thermal stress (you are comfortable)</li>
+<li>26 to 32: moderate</li>
+<li>32 to 38: strong</li>
+<li>38 to 46: very strong (heat exhaustion likely with prolonged exposure)</li>
+<li>Above 46: extreme (heat stroke risk)</li>
+</ul>
+
+<p>On our hot day in Hayti, the average pavement cell sat right at 46 °C UTCI, the threshold where the World Health Organization starts recommending people stay indoors. About 72 percent of all paved cells in our 2 km tile crossed that threshold at the peak hour. That is a feature of summer in dense southern cities, not a bug in the model.</p>
+
+<p>One quiet thing to remember: UTCI's formula was validated for conditions where the radiation load did not push it too far above 46. The category (extreme) is well defined. The exact value above 46 is partly extrapolation. So when you see a slide saying "47 °C UTCI," read it as "extreme, somewhere around 47," not as "we know this to four significant figures."</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/landcover_utci.png" alt="UTCI by landcover">
+<figcaption>The mean UTCI for each landcover class at 3 PM on June 23rd. The colored bands behind the bars are the WHO heat-stress categories. Notice that paved and bare-soil cells sit right at the boundary between very-strong and extreme heat stress. Grass-and-under-tree cells sit five and a half degrees lower, in very-strong. The whole intervention is about converting paved cells to under-tree cells, one planting site at a time.</figcaption>
+</figure>
+
+<h1><span class="ch">Chapter 3</span>The map your phone doesn't show</h1>
+
+<p>To predict where shadows fall, the model needs to know the shape of the city in three dimensions. Not just the streets and buildings, but their heights. Not just the trees, but their canopy widths. The phone-app version of Durham, which is a flat picture, will not do.</p>
+
+<p>The way you measure the shape of a city in 3D is with LiDAR. Light Detection And Ranging. A small plane flies over the city at low altitude with a laser pointer mounted under it, except the laser fires hundreds of thousands of pulses per second, and there is a very precise clock measuring how long each pulse takes to bounce back. The time of flight, multiplied by the speed of light, gives the distance to whatever the pulse hit. The plane knows where it is and where it is pointing. So every pulse becomes a 3D point.</p>
+
+<p>The result is a point cloud: a few billion dots floating in 3D space, each one tagged with the time it returned and the strength of the echo. Modern LiDAR processors can also classify those dots as ground, building, vegetation, water, and a few other categories.</p>
+
+<p>The North Carolina state government did this for the entire state in 2015, called it Phase 3, and made the result public. NOAA hosts the point cloud on Amazon Web Services as Entwine Point Tile (EPT) format, which is a way of organizing billions of points so a piece of software can ask "give me everything inside this box" without downloading the whole state. We use a tool called PDAL (Point Data Abstraction Library) to make those queries.</p>
+
+<h2>From point cloud to raster</h2>
+
+<p>A point cloud is unwieldy. To do anything with it computationally we need to project it down onto a regular grid, the same way you would summarize a billion shoe-print measurements into a ten-by-ten grid of average shoe sizes by neighborhood. The grid we use is one meter per cell.</p>
+
+<p>The Digital Elevation Model (DEM) is the grid where each cell is the elevation of the bare ground. To build it, we take only the LiDAR points classified as ground (Class 2 in the LAS standard) and find the elevation of those points at each grid cell. Where there is a building or a tree on top of the ground, there are no ground points at all (the laser cannot see through), so we have to fill those holes by interpolating from nearby cells. About 30 percent of the urban tile is interpolated this way.</p>
+
+<p>The Digital Surface Model (DSM) is the grid where each cell is the elevation of whatever is on top: a roof, a tree canopy, or the bare ground if there is nothing else. To build it, we take the first return of every LiDAR pulse (the first echo back, which is the topmost surface that pulse hit) and find the maximum elevation at each cell.</p>
+
+<p>The Canopy Digital Surface Model (CDSM) is what trees look like above the ground. We compute it as DSM minus DEM, then mask it to cells where the EnviroAtlas land cover product says "trees" (more on that in the next chapter). Every other cell gets zero canopy height. The CDSM file is named <code>Trees.tif</code> in our pipeline, and yes, that name is confusing.</p>
+
+<p class="pullquote">A useful rule: the DEM is the ground. The DSM is the ground plus stuff. The CDSM is just the stuff that is trees. SOLWEIG needs all three, and gets very confused if any of them are wrong.</p>
+
+<p>One historical note that matters. North Carolina LiDAR is sometimes delivered in U.S. Survey Feet rather than meters. If a researcher does not catch this, building heights come out three times too tall. We are using the NOAA-hosted EPT version, which is in EPSG:6346 and uses meters, so we sidestep the foot trap. But every researcher reading this should know it exists. It is the most common way to get garbage SOLWEIG output.</p>
+
+<h1><span class="ch">Chapter 4</span>Building the neighborhood from scratch</h1>
+
+<p>SOLWEIG needs five inputs. Four are rasters and one is a meteorological time series. We have already met three of the rasters. Here is the full list.</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/data_panels.png" alt="Five rasters" class="tall">
+<figcaption>Four of the five raster inputs, all on the same one-meter grid. Top-left is the bare-earth DEM with hillshade. Top-right is the building DSM, where brightness is height above ground in meters. Bottom-left is the tree canopy heights. Bottom-right is the land cover, color-coded by UMEP class. Each panel is 2 km wide and 2 km tall.</figcaption>
+</figure>
+
+<p><strong>DEM</strong>: bare-earth terrain. Source: 2015 NC Phase 3 LiDAR ground returns, hole-filled.</p>
+
+<p><strong>Building DSM</strong>: ground plus buildings, but specifically not trees. We will spend the entire next chapter on why this is harder than it sounds.</p>
+
+<p><strong>Trees CDSM</strong>: canopy heights above ground, in meters, with zero everywhere there is no tree.</p>
+
+<p><strong>Landcover</strong>: a categorical map where each cell is one of five values from the UMEP classification scheme:
+<ul>
+<li>1 = paved (roads, parking lots, sidewalks)</li>
+<li>2 = building (under a roof)</li>
+<li>5 = grass or under-tree (the cool, soft surface)</li>
+<li>6 = bare soil</li>
+<li>7 = water</li>
+</ul>
+The land cover comes from EPA's EnviroAtlas product for Durham, which is a one-meter satellite-derived classification from 2010. It is the oldest input we have and the weakest data link in the project. We will return to this in the limitations chapter.</p>
+
+<p><strong>Met forcing</strong>: a 24-row text file with hourly weather for our chosen day. Air temperature, relative humidity, wind speed, surface pressure, downwelling shortwave radiation, downwelling longwave radiation. Source: NOAA's HRRR (High Resolution Rapid Refresh) model, which is a 3-km gridded weather hindcast that the National Weather Service produces. We pull a single grid cell over our area of interest and write the 24 hourly values to a UMEP-formatted text file.</p>
+
+<h2>Why one meter</h2>
+
+<p>The grid resolution is one meter per cell. That is fine enough that a sidewalk is one or two cells wide and a tree canopy is five to seven cells across. It is coarse enough that a 2 km by 2 km tile is only four million cells, which fits in memory on a laptop.</p>
+
+<p>The reason one meter matters is that the cooling effect of a single tree extends only a few meters from the trunk. If the grid were ten meters per cell, every tree would smear across just one cell, and the spatial structure of the cooling (which is the whole point) would vanish. If the grid were ten centimeters, we would have a hundred times more cells and SOLWEIG would take a week to run. One meter is the sweet spot the literature has converged on.</p>
+
+<h2>Why all on the same grid</h2>
+
+<p>One meter resolution by itself is not enough. All four rasters have to be on <em>the same</em> one-meter grid. Same coordinate reference system (EPSG:32617, which is UTM zone 17 north), same extent (the same bounding box), same cell size, same cell alignment. If the building DSM is offset by half a cell from the land cover, the model will think the building has a sidewalk inside it and a parking lot on its roof. SOLWEIG will run and produce nonsense, and the nonsense will look like a clean result if you do not check it.</p>
+
+<p>This kind of careful alignment is most of the work in geospatial science. Once the rasters are aligned, the interesting part begins.</p>
+
+<h1><span class="ch">Chapter 5</span>The trees that weren't buildings</h1>
+
+<p>Most of this project was getting the building DSM right. The wrong way to build it is what we tried first.</p>
+
+<p>The naive recipe is: take the first return of every LiDAR pulse, find the maximum elevation at each one-meter cell, and call that the Building DSM. The first return is the topmost thing the laser hit, which is usually a building roof. Sometimes it is a tree canopy. Sometimes it is a bird flying through the laser beam. Sometimes it is a glint off a chrome bumper.</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/dsm_correction.png" alt="DSM correction" class="wide">
+<figcaption>Left: the naive Building DSM (LiDAR first returns, max). Notice the lower half of the image is full of bright dots that are not buildings. Those are trees. The LiDAR cannot tell from above that they are porous. Middle: the corrected DSM. Bare ground everywhere except inside Overture building footprints, where we use either the LiDAR roof height or the Overture-reported building height (whichever is taller). Right: the difference. Blue is where we removed phantom buildings (mostly trees and birds). Red is where we added real buildings that LiDAR missed.</figcaption>
+</figure>
+
+<p>The problem with the naive recipe is that the simulation treats buildings and trees completely differently. A building is opaque. Sunlight hits the wall and stops. Long-wave radiation comes off the wall at the building's surface temperature. A tree is porous. Sunlight scatters and partially passes through. The canopy emits long-wave at a much cooler leaf temperature. If you tell SOLWEIG that a tree is a building, it computes the wrong shadows, the wrong reflections, the wrong surface temperatures, and double-counts the tree against its own canopy data.</p>
+
+<p>The fix has been published since 2011 in a paper by Lindberg and Grimmond (the same authors who wrote the original SOLWEIG model). Their recipe, in plain English: the Building DSM should equal the bare ground everywhere, <em>except</em> inside the polygons of real buildings, where it should equal the maximum of the LiDAR roof height and any other building-height estimate available.</p>
+
+<p>The hard part used to be finding the polygons. Cities sometimes release their building footprint files, but the formats vary, the coverage is patchy, and you have to negotiate with each city separately. The Overture Maps Foundation changed this. It is an open dataset, started in 2022, that combines OpenStreetMap building footprints with Microsoft's machine-learning-derived footprints, and it covers the entire planet. You can pull every building polygon in your area of interest with one command. We do.</p>
+
+<p>The actual logic for our Building DSM, which lives in <code>scripts/_patch_buildings.py</code>:</p>
+
+<pre>
+<span class="c"># Default: bare ground everywhere</span>
+new_dsm = np.where(valid_dem, dem, -9999.0)
+
+<span class="c"># Inside Overture footprints, use the taller of:</span>
+<span class="c">#   1. capped LiDAR first-return (cap at 150 m above ground)</span>
+<span class="c">#   2. DEM + Overture-reported building height</span>
+overture_roof = dem + heights_raster
+inside = footprint_mask & valid_dem
+
+case_both = inside & have_overture & valid_lidar
+new_dsm[case_both] = np.maximum(lidar_capped[case_both],
+                                overture_roof[case_both])
+
+case_overture_only = inside & have_overture & ~valid_lidar
+new_dsm[case_overture_only] = overture_roof[case_overture_only]
+
+case_lidar_only = inside & ~have_overture & valid_lidar
+new_dsm[case_lidar_only] = lidar_capped[case_lidar_only]
+</pre>
+
+<p>The 150 meter cap is a separate noise filter. A few hundred LiDAR pixels in any urban tile register at 1000 or 1500 meters above ground. Those are aircraft and birds caught mid-flight by the laser. Durham's tallest real building is the Hill Building at 91 meters. Capping at 150 meters gives us generous headroom for antennas and parapets while throwing out the obvious noise.</p>
+
+<p>This corrected building DSM is the methodological contribution of the project. It is small but it is real, because Overture-as-footprint-source is now reproducible without paying any city for proprietary GIS layers. Anyone, anywhere, can build a SOLWEIG-ready DSM the same way.</p>
+
+<h1><span class="ch">Chapter 6</span>Tracing sunbeams</h1>
+
+<p>SOLWEIG runs the physics. The name stands for Solar and Long-Wave Environmental Irradiance Geometry. It was built at the University of Gothenburg by Fredrik Lindberg and Björn Holmer in the 2000s and has been validated against thousands of hours of pedestrian-level radiation measurements in cities from Manchester to Hong Kong. We use a 2026 GPU port called <code>solweig-gpu</code> by Kamath et al., published in the Journal of Open Source Software, which uses PyTorch under the hood and runs on either CUDA GPUs or CPU.</p>
+
+<p>The model is described as 2.5D. It is not full 3D because it only knows two heights at each cell (the building DSM and the canopy DSM), not a full volumetric description of the atmosphere. But it is more than 2D because it ray-traces in 3D against those height surfaces. The compromise is what makes the model fast enough to run on a city block at one-meter resolution.</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/methods_solweig.png" alt="SOLWEIG cartoon" class="wide">
+<figcaption>SOLWEIG, in a cartoon. For each pixel each hour: figure out where the sun is, ray-cast to see if anything is in the way, then add up the radiation arriving from above (sky), below (ground), the four cardinal walls, and any tree canopy nearby. Sum to mean radiant temperature.</figcaption>
+</figure>
+
+<h2>The five steps, per pixel, per hour</h2>
+
+<ol>
+<li><strong>Sun position.</strong> Given the date, time, latitude, and longitude, calculate the sun's altitude and azimuth (angle above the horizon and compass direction). At 35.985 °N on June 23rd at 3 PM EDT, the sun is at 65 degrees altitude and 247 degrees azimuth (just south of west).</li>
+<li><strong>Shadow casting.</strong> From this pixel, draw a ray toward the sun. If the ray hits a building or tree before leaving the model domain, this pixel is in shadow and gets zero direct sunlight. If not, it gets the full direct beam. (For trees, "in shadow" actually means partial shading because canopies are porous, but the principle is the same.)</li>
+<li><strong>Six-direction radiation.</strong> Sum the energy arriving at this pixel from six directions: above (sky shortwave plus sky longwave), below (ground emission), and four cardinal walls (north, south, east, west). Each component depends on the geometry around the pixel, which is captured in the Sky View Factor and the wall-height/wall-aspect maps SOLWEIG computes once at the start.</li>
+<li><strong>Mean radiant temperature.</strong> Convert the total energy bath to an equivalent black-body temperature. This is Tmrt.</li>
+<li><strong>UTCI.</strong> Plug Tmrt, air temp, humidity, and wind into the UTCI polynomial. Out comes the feels-like number.</li>
+</ol>
+
+<h2>Sky View Factor and walls</h2>
+
+<p>Three maps that the model computes once and reuses for every hour:</p>
+
+<p><strong>Sky View Factor</strong> at each pixel is the fraction of the upper hemisphere that is open sky. Standing in the middle of a parking lot, your SVF is close to 1. Standing at the bottom of a narrow urban canyon between two tall buildings, it is closer to 0.5. SVF affects how much diffuse sky radiation reaches you and how much heat you lose to the cold sky at night. It is computed by ray-casting from each pixel in 720 directions and seeing how many rays hit something before leaving the model.</p>
+
+<p><strong>Wall heights</strong> at each pixel near a building tell the model the height and aspect of the wall facing that pixel. This determines how much long-wave radiation the wall throws at the pixel.</p>
+
+<p><strong>Wall aspect</strong> is the compass direction the wall faces. A south-facing wall heats up more during the day and emits more thermal radiation in the afternoon than a north-facing wall.</p>
+
+<p>Computing these three maps is the slow part of SOLWEIG. They depend only on the building DSM, not on the date or weather. So once you compute them for the baseline, you can reuse them for every scenario that has the same buildings (which all of ours do, because we are only adding trees, not modifying buildings). This is a big win: the wall map computation took 35 minutes; we cached it and skipped 35 minutes from each of the two scenario runs.</p>
+
+<h2>What the Python call looks like</h2>
+
+<p>The actual call to the model fits on one screen:</p>
+
+<pre>
+<span class="k">from</span> solweig_gpu <span class="k">import</span> thermal_comfort
+
+thermal_comfort(
+    base_path=<span class="s">"inputs/processed/durham_hayti_baseline"</span>,
+    selected_date_str=<span class="s">"2025-06-23"</span>,
+    building_dsm_filename=<span class="s">"Building_DSM.tif"</span>,
+    dem_filename=<span class="s">"DEM.tif"</span>,
+    trees_filename=<span class="s">"Trees.tif"</span>,
+    landcover_filename=<span class="s">"Landcover.tif"</span>,
+    tile_size=1000,
+    overlap=100,
+    use_own_met=<span class="k">True</span>,
+    own_met_file=<span class="s">"inputs/processed/durham_hayti_baseline/ownmet_2025-06-23.txt"</span>,
+    save_tmrt=<span class="k">True</span>,
+    save_svf=<span class="k">True</span>,
+    save_shadow=<span class="k">True</span>,
+)
+</pre>
+
+<p>The full 24-hour run for our 2 km tile took 1 hour 37 minutes on a 16-core CPU pod. With a real GPU it would have been about 90 seconds.</p>
+
+<p>The output is two GeoTIFF files, each with 24 bands (one per hour): <code>TMRT_merged.tif</code> and <code>UTCI_merged.tif</code>. Each band is a one-meter raster of the temperature field at that hour. Reading band 16 gives you the field at 3 PM EDT, which is our peak hour.</p>
+
+<h1><span class="ch">Chapter 7</span>Pretending the trees are already there</h1>
+
+<p>Once the baseline run is done, the question becomes: how do we simulate the same neighborhood after the city plants its 245 trees? The Open Data Portal gives us latitude and longitude for each planned site, but it does not tell us how big each tree will be when it grows up. So we have to invent that part.</p>
+
+<p>We pick two canopy assumptions and run them both:</p>
+
+<p><strong>Small canopy</strong>: a tree 5 meters tall with a canopy disk 5 by 5 pixels (so 25 m²). This is what a Willow Oak or Red Maple, both common Durham street trees, looks like five to ten years after planting.</p>
+
+<p><strong>Large canopy</strong>: a tree 12 meters tall with a canopy disk 7 by 7 pixels (49 m²). This is roughly what the same species look like at 25 years, capped below the 18 m forest-grown maximum because urban street trees almost never reach forest dimensions (smaller soil volume, mandatory clearance pruning, mixed species mix).</p>
+
+<p>The two scenarios bracket the result. They are <em>not</em> a confidence interval. They do not propagate uncertainty in tree mortality (urban first-five-year mortality is often 20 to 40 percent), species mix, leaf area, or land-cover misclassification. They are two assumed parameter points whose only purpose is to show the audience whether the answer is sensitive to canopy size. (It is, but only modestly: the two scenarios differ by about 1.1 °C in median UTCI cooling.)</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/scenario_design.png" alt="Scenario design" class="wide">
+<figcaption>Two canopy-size assumptions. Each is burned into a copy of the Trees CDSM raster as a square disk of fixed height. The Landcover raster is also patched at the same cells from "paved" to "grass / under-tree" so that SOLWEIG uses the right surface reflectivity and emissivity under the new canopy.</figcaption>
+</figure>
+
+<p>The actual burning is one of the simpler scripts in the project. For each planting site, we convert the latitude/longitude to a pixel coordinate, then write the canopy height into a square of pixels around it. Existing canopy is preserved (we take the maximum, not the new value, so we never accidentally shrink an old tree). Cells that fall on a building roof are skipped (you cannot plant a tree on a roof).</p>
+
+<pre>
+<span class="k">for</span> _, row <span class="k">in</span> sites.iterrows():
+    x_utm, y_utm = row.geometry.x, row.geometry.y
+    col, row_idx = ~transform * (x_utm, y_utm)
+    col, row_idx = <span class="k">int</span>(<span class="k">round</span>(col)), <span class="k">int</span>(<span class="k">round</span>(row_idx))
+    <span class="k">if</span> lc[row_idx, col] == 2:    <span class="c"># on a building roof — skip</span>
+        sites_inside_building += 1
+        <span class="k">continue</span>
+    <span class="k">for</span> dy, dx <span class="k">in</span> offsets:    <span class="c"># 5x5 or 7x7 disk</span>
+        r, c = row_idx + dy, col + dx
+        <span class="c"># Trees: take max so existing canopy isn't shrunk</span>
+        <span class="k">if</span> trees[r, c] &lt; canopy_h:
+            trees[r, c] = canopy_h
+        <span class="c"># Landcover: don't reclassify roofs to grass</span>
+        <span class="k">if</span> lc[r, c] != 2 <span class="k">and</span> lc[r, c] != 5:
+            lc[r, c] = 5
+</pre>
+
+<p>The result is a new pair of rasters (Trees.tif and Landcover.tif) for each scenario. Building_DSM.tif and DEM.tif are unchanged. Then we re-run SOLWEIG against the modified rasters with all the same met forcing and date as the baseline, and the only thing that differs cell by cell is the radiation field where we added trees.</p>
+
+<h1><span class="ch">Chapter 8</span>Reading the result</h1>
+
+<p>You now have three raster outputs. Baseline UTCI. Small-canopy scenario UTCI. Large-canopy scenario UTCI. Each is a 24-band raster on the same 2 km grid. Reading them is the actual analysis.</p>
+
+<h2>The diff map</h2>
+
+<p>Subtract the scenario from the baseline at peak hour. The result is a ΔUTCI raster: positive where it warmed, negative where it cooled. Almost every cell is zero (because we only modified about 0.15 percent of the area). The cells that did change form a constellation of small dark-blue spots, one per planting site, where the cooling concentrated.</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/fig1_utci_three_panel_mature.png" alt="Three panel result" class="wide">
+<figcaption>The 700 m by 700 m densest-cluster zoom. Left: baseline UTCI at peak. Middle: same view with mature canopy at every site. Right: the difference, scenario minus baseline. Each blue spot is exactly one planted tree's cooling footprint. The cooling is local: it stops a few meters from each tree.</figcaption>
+</figure>
+
+<h2>The histogram</h2>
+
+<p>If you want one chart that captures the result, it is the histogram of ΔUTCI for every pedestrian-accessible cell within 30 meters of a planting site. The shape is bimodal:</p>
+
+<ul>
+<li>A tall spike near zero. These are the buffer cells (within 30 m of a tree but not directly under it). They barely changed.</li>
+<li>A fat hump centered around minus 5 to minus 7 degrees. These are the cells <em>inside</em> the new canopy disks. They flipped from full sun to partial shade.</li>
+</ul>
+
+<p>The median ΔUTCI at planted disk pixels is about −5.8 °C for the large-canopy scenario and −4.7 °C for the small-canopy scenario. The most-cooled single pixel drops by 10 °C, which happens where multiple disks overlap and shade compounds.</p>
+
+<figure>
+<img src="figures/durham_hayti/slides/fig2_utci_histogram.png" alt="Histogram" class="wide">
+<figcaption>ΔUTCI for cells within 30 m of a planted site. The y-axis is logarithmic, which is why the small-canopy fat hump on the left is visible at all (only a few thousand cells, against tens of thousands of buffer cells in the spike near zero).</figcaption>
+</figure>
+
+<h2>Categories, not values</h2>
+
+<p>A 5.8 °C drop sounds large in isolation, but you only feel its impact through the heat-stress categories. We computed the actual category transition rates from the data:</p>
+
+<ul>
+<li>Before the intervention: 58 percent of planted-disk pixels were in "extreme" (>46 °C). 38 percent were in "very strong." 3 percent were in "strong."</li>
+<li>After the intervention: 1.2 percent are still in "extreme." 96 percent are in "very strong." The rest are scattered.</li>
+<li>About 57 percent of pixels make a one-category drop (extreme → very strong). 41 percent stay in the same category but cool within it. Less than 1 percent make a two-category drop.</li>
+</ul>
+
+<p>The honest sentence to take away from this is: most planted spots become one notch less dangerous. Not "comfortable." Just less dangerous. That matters because heatstroke risk does scale roughly with the categories, but it is a much more modest claim than "we are cooling Hayti."</p>
+
+<h2>The arithmetic check</h2>
+
+<p>If you average ΔUTCI across the entire 2 km tile (every pedestrian-accessible cell), you get −0.01 °C. This is not a contradiction with the −5.8 °C at planted pixels. It is arithmetic. We modified 0.15 percent of the cells. The other 99.85 percent did not change. So the spatial mean change is roughly 0.15% × −5.8 °C ≈ −0.01 °C.</p>
+
+<p>This is the framing slide. If a critic says "this program cools Hayti by 0.01 °C, which is nothing," they are not wrong about the number. They are answering the wrong question. The right question is "what does each planted spot feel," not "what does the city-wide average do." The intervention is targeted by design, and the right metric is per-planted-spot cooling, not citywide-mean cooling.</p>
+
+<h1><span class="ch">Chapter 9</span>The honest bits</h1>
+
+<p>Every modeling study has a frame around it. Where the frame ends matters more than the headline number. Here is where ours ends.</p>
+
+<h2>What is uniform across the tile</h2>
+
+<p>The meteorological forcing is one row per hour applied to every cell. Air temperature, wind, humidity: all the same everywhere. Only the radiation field varies cell by cell. This means the ΔUTCI we report is essentially a transformation of ΔTmrt by the radiation channel alone.</p>
+
+<p>Real cities have urban-canyon wind reduction (a planted alley has slower wind than an open street), real trees transpire and cool the air around them, and real shaded zones have lower air temperature than sunlit zones a few meters away. None of those effects are in our model. They would all <em>strengthen</em> the cooling estimate. So our −5.8 °C is conservative for full microclimate response.</p>
+
+<h2>What we don't propagate</h2>
+
+<p>Two scenarios is not a confidence interval. We did not Monte Carlo over species mix, leaf area index, tree mortality, or EnviroAtlas misclassification (which has a known 17 percent error rate by EPA's own accuracy assessment). The right way to produce a real interval would be to run, say, 100 simulations with parameters drawn from realistic distributions. We did not. Two scenarios are sensitivity points, two assumed parameter sets, useful for showing the result is not wildly sensitive to canopy size, but not a statistical interval.</p>
+
+<h2>What we assume about the city</h2>
+
+<p>Our reported cooling is conditional on every one of the 245 sites actually being planted, and every tree surviving to the prescribed canopy size. Urban street-tree mortality in the first five years is often 20 to 40 percent. So real-world cooling will be smaller. The number we report is closer to "best case if the program is fully realized" than "what we expect to see in 2030."</p>
+
+<h2>What we don't have</h2>
+
+<p>We have no in-situ validation. The model is internally consistent and matches independent reanalyses. It has not been compared against actual measured Tmrt at any pedestrian site in Hayti. Our three "validation" checks are properly described as sanity checks, not validation. True validation requires deploying globe-thermometer loggers (about $200 each) at planted sites and measuring Tmrt over a season.</p>
+
+<h2>What we don't weight</h2>
+
+<p>The 5.8 °C cooling at planted pixels is per-pixel. The public-health benefit depends on whether actual pedestrians spend time at those pixels. If the 245 sites cluster at bus stops and school crossings, the benefit is large. If they cluster at sidewalk corners no one waits at, the benefit is mostly aesthetic. We have not joined the planting locations to foot-traffic data.</p>
+
+<p class="pullquote">If a city official used this study to make a policy decision, they should know exactly what assumptions are baked in. That is the whole point of writing the limitations down.</p>
+
+<h2>The "above 46" caveat</h2>
+
+<p>UTCI's polynomial loses precision above 46 °C. The category (extreme heat stress) is well defined. The exact value is partly extrapolation. So when we say "47 °C," read it as "extreme, somewhere around 47," not as a precise number. This affects most of the paved-cell baseline values in our peak-hour map.</p>
+
+<h1><span class="ch">Chapter 10</span>A tour through the code</h1>
+
+<p>The pipeline is seven scripts that run end to end. Each script is small, with a clear purpose. Here they are in order.</p>
+
+<div class="script-header">scripts/_aoi.py</div>
+<pre>
+AOI_NAME = <span class="s">"durham_hayti"</span>
+AOI_CENTER_LAT = 35.985
+AOI_CENTER_LON = -78.900
+AOI_SIZE_KM = 2.0
+SHADOW_BUFFER_M = 200
+SIM_DATE = <span class="s">"2025-06-23"</span>
+TILE_SIZE = <span class="k">int</span>(os.environ.get(<span class="s">"TILE_SIZE"</span>, <span class="s">"1000"</span>))
+TILE_OVERLAP = 100
+</pre>
+
+<p>The single source of truth for the project. Every other script imports from here. Move the AOI to a new neighborhood by editing three lines (lat, lon, size) and the rest of the pipeline follows.</p>
+
+<div class="script-header">scripts/02_download_data.py</div>
+
+<p>Downloads everything. NOAA HRRR weather data via dynamical.org's Icechunk archive. EnviroAtlas MULC raster from EPA. Durham Open Data Portal "Trees & Planting Sites" geojson. Iowa Mesonet ASOS observations from KRDU. Each download is idempotent: it checks if the file already exists and skips re-fetching. The script also has the algorithmic hot-day picker, which queries KRDU's max temperatures for the year and picks the hottest day with cloud cover below 15 percent.</p>
+
+<div class="script-header">scripts/03_build_rasters.py</div>
+
+<p>Builds the four GeoTIFF inputs SOLWEIG needs. Two PDAL pipelines (one for the DSM, one for the DEM ground returns). One <code>gdal_fillnodata</code> call to fill the holes under buildings and trees in the DEM. One <code>gdalwarp</code> to align the EnviroAtlas land cover to our grid. Then a chunk of NumPy to compute the canopy DSM and the UMEP-classified Landcover.</p>
+
+<pre>
+<span class="c"># DSM from LiDAR first returns, max @ 1m</span>
+pipe = {<span class="s">"pipeline"</span>: [
+    {<span class="s">"type"</span>: <span class="s">"readers.ept"</span>, <span class="s">"filename"</span>: EPT_URL,
+     <span class="s">"bounds"</span>: bbox_str},
+    {<span class="s">"type"</span>: <span class="s">"filters.range"</span>, <span class="s">"limits"</span>: <span class="s">"ReturnNumber[1:1]"</span>},
+    {<span class="s">"type"</span>: <span class="s">"filters.reprojection"</span>,
+     <span class="s">"in_srs"</span>: <span class="s">"EPSG:6346"</span>, <span class="s">"out_srs"</span>: <span class="s">"EPSG:32617"</span>},
+    {<span class="s">"type"</span>: <span class="s">"writers.gdal"</span>, <span class="s">"filename"</span>: <span class="k">str</span>(dst),
+     <span class="s">"resolution"</span>: 1.0, <span class="s">"output_type"</span>: <span class="s">"max"</span>}
+]}
+</pre>
+
+<p>The first <code>filters.range</code> with <code>ReturnNumber[1:1]</code> is what selects "first returns only." The reprojection step is what saves us from the U.S. Survey Feet trap, because it converts from EPSG:6346 (NAD83 2011 UTM 17N, meters) to EPSG:32617 (WGS84 UTM 17N, meters) without any unit drama.</p>
+
+<div class="script-header">scripts/_patch_buildings.py</div>
+
+<p>The Lindberg & Grimmond DSM correction. Reads the naive Building_DSM.tif (now renamed to Building_DSM.preMS.tif), the DEM, and the Overture footprint geojson. Rasterizes the footprints to a boolean mask. Computes the corrected DSM by case analysis (both LiDAR and Overture, Overture only, LiDAR only, or neither). Reclassifies Landcover so every Overture footprint cell becomes UMEP class 2 (building).</p>
+
+<p>This is also where the 150-meter LiDAR cap is applied. We saw 392 cells with raw LiDAR returns above 150 m above ground in our tile. Those are aircraft and birds.</p>
+
+<div class="script-header">scripts/04_run_baseline.py</div>
+
+<p>Calls <code>solweig_gpu.thermal_comfort()</code>. Tees stdout and stderr to a log file so we can monitor from another terminal. Includes pre-flight checks (do all four rasters exist? Do they have the same shape? Is the DSM-DEM max less than 250 m, our sanity threshold?). After the run, runs gate checks: 24 bands, peak-hour standard deviation greater than 5 °C (real shadow contrast), pre-dawn standard deviation less than 2 °C (uniform night).</p>
+
+<pre>
+peak_h, peak_mean, peak_std = <span class="k">max</span>(hourly, key=<span class="k">lambda</span> r: r[1])
+<span class="k">if</span> peak_std &lt; 5:
+    _log(<span class="s">f"  FAIL: peak std </span>{peak_std:.2f}<span class="s">°C &lt; 5°C gate"</span>)
+    fails += 1
+</pre>
+
+<p>The gate logic is small but it has saved us several times. A common silent failure mode in SOLWEIG is to produce uniform output (no shadow contrast). The peak-std gate catches that immediately.</p>
+
+<div class="script-header">scripts/05_build_scenario.py</div>
+
+<p>The disk-burning logic from the previous chapter. Two scenarios (small and large canopy). Each writes a fresh Trees.tif and Landcover.tif into a scenario folder, copying Building_DSM.tif and DEM.tif byte-for-byte from the baseline. Also pre-symlinks the wall-height and aspect cache directories from the baseline's processed_inputs folder. This is the optimization that lets each scenario run skip the 35-minute wall-computation step. <code>solweig_gpu</code> sees the wall outputs already exist and moves straight to the GPU main loop.</p>
+
+<pre>
+<span class="k">def</span> _seed_walls_aspect_cache(out_dir: Path) -&gt; <span class="k">None</span>:
+    base_pp = BASELINE / <span class="s">"processed_inputs"</span>
+    scen_pp = out_dir / <span class="s">"processed_inputs"</span>
+    <span class="k">for</span> sub <span class="k">in</span> (<span class="s">"walls"</span>, <span class="s">"aspect"</span>, <span class="s">"Building_DSM"</span>, <span class="s">"DEM"</span>):
+        <span class="k">for</span> tile <span class="k">in</span> (base_pp / sub).iterdir():
+            link = scen_pp / sub / tile.name
+            link.symlink_to(tile.resolve())
+</pre>
+
+<div class="script-header">scripts/06_run_scenario.py</div>
+
+<p>Calls <code>thermal_comfort()</code> against each scenario folder, identical arguments to the baseline call except for <code>base_path</code> and <code>own_met_file</code>. Skips the run if the output is already complete (checks for the expected TMRT and UTCI tiles, not just the existence of the output folder).</p>
+
+<div class="script-header">scripts/07_make_figures.py</div>
+
+<p>The analysis. Reads baseline TMRT/UTCI and scenario TMRT/UTCI. Computes hourly tile-mean traces, ΔTmrt and ΔUTCI fields, near-tree histograms, and per-landcover statistics. Writes the figures and a <code>headline.txt</code> with the key numbers.</p>
+
+<p>The most useful function is the near-tree mask:</p>
+
+<pre>
+<span class="k">from</span> rasterio.features <span class="k">import</span> geometry_mask
+near = geometry_mask([pt.buffer(30) <span class="k">for</span> pt <span class="k">in</span> planting.geometry],
+                     transform=transform, out_shape=shape,
+                     invert=<span class="k">True</span>)
+near &amp;= ~is_building
+</pre>
+
+<p>This builds a boolean mask of every cell within 30 meters of any planted point and not on a roof. Take the difference array between scenario and baseline UTCI, restrict to that mask, and you have the population for the headline number and the histogram on slide 11. Roof exclusion matters because Tmrt and UTCI are not pedestrian-relevant on roofs (no one walks there), and including those cells would smear the cooling distribution.</p>
+
+<h2>What we glossed over</h2>
+
+<p>There are two scripts in the repo we did not cover. <code>scripts/_inspect_web.py</code> builds the interactive web inspector that we used during development for shadow-direction QA, DSM-correction QA, and planted-disk placement QA. <code>scripts/02_download_data.py</code> contains the algorithmic hot-day picker which scores each KRDU day on a max-temp + low-cloud rubric and picks the year's worst clear day. They both work, they are both useful, but they are tooling rather than analysis.</p>
+
+<p>Reading any one of these scripts cold should now make sense. Each one has a docstring at the top with the why; each function has a comment when the why is non-obvious. The whole pipeline runs end to end with one command (<code>./run_full_pipeline.sh</code>), which is the only test that really matters.</p>
+
+<h1><span class="ch">Chapter 11</span>What to take to bed</h1>
+
+<p>One last walk through the story, in the right order.</p>
+
+<p>Heat is the deadliest weather hazard in the United States, and it does not kill evenly. Hayti has less canopy than the rest of Durham because of redlining and freeway demolition. The City is planting 245 trees there between 2025 and 2028. We tried to predict, in advance, what those trees will do.</p>
+
+<p>The right unit is feels-like temperature, not air temperature. We use UTCI, which combines air temp, humidity, wind, and mean radiant temperature into one number on the WHO scale. Most of summer Hayti at 3 PM is in "extreme" heat stress (above 46 °C). Tree shade can drop a paved spot by about 5 to 6 °C of UTCI, a one-category drop from extreme to very strong.</p>
+
+<p>To compute this, we built a 1 m, 2 km square model of Hayti from public LiDAR (2015), satellite-derived land cover (2010), Overture Maps building footprints (2026), and NOAA HRRR weather (2025). The Overture-gated Building DSM is the methodological contribution. We ran SOLWEIG (a 2.5D shortwave/longwave radiation model) for 24 hours at 1 m resolution, burned tree disks into the canopy raster at the 245 planting sites, and re-ran. The difference is the cooling we report.</p>
+
+<p>The big number is per planted pixel, conditional on every site being planted and every tree surviving to maturity. The tile-wide cooling is 0.01 °C, because the intervention only modifies 0.15 percent of cells. We have not validated against in-situ measurements. The single most useful thing this project produced, beyond the headline, is a reproducible Overture-based recipe for building a SOLWEIG-ready DSM. Anyone, anywhere, can now build the same input rasters from open data and run their own neighborhood-scale thermal comfort study. That is the whole project. Goodnight.</p>
+
+</body>
+</html>

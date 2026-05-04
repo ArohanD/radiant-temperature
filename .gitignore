@@ -212,7 +212,11 @@ tempCodeRunnerFile.py
 # Marimo
 marimo/_static/
 marimo/_lsp/
-__marimo__/
+# ignore everything under __marimo__/ except the session snapshots
+# (committed so molab can render outputs from the GitHub URL)
+**/__marimo__/**
+!**/__marimo__/session/
+!**/__marimo__/session/**
 
 # Streamlit
 .streamlit/secrets.toml
@@ -234,6 +238,13 @@ outputs/
 *.vrt
 *.aux.xml
 figures/*.png
+# Per-AOI figure subdirs are regenerated on each notebook run.
+# durham_hayti/ is tracked because it holds the published conference-deck
+# figures; new AOIs default to ignored.
+figures/hayti_demo/
+
+# Archive — everything we cut from the main repo surface
+archive/
 
 # Archive — everything we cut from the main repo surface
 archive/
