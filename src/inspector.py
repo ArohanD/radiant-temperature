@@ -41,7 +41,40 @@ from matplotlib import colors
 from PIL import Image
 from pyproj import Transformer
 
+import src.aoi as _aoi_mod
 from src.aoi import AOI_NAME, PROCESSING_BBOX, TILE_BBOX, AOI_CENTER_LAT, AOI_CENTER_LON
+
+
+def set_aoi(profile: str) -> None:
+    """Switch this module's AOI-dependent paths to a different profile.
+
+    Call once from a notebook before invoking `build_bundle()` so that
+    the module-level paths (OUT, WEB, SCENARIO_DIRS, OVERTURE_GEOJSON,
+    SCENARIO_DIFF_DIR) reflect the chosen AOI.
+    """
+    import importlib
+    import os as _os
+    _os.environ["AOI_PROFILE"] = profile
+    importlib.reload(_aoi_mod)
+    global AOI_NAME, AOI_CENTER_LAT, AOI_CENTER_LON, TILE_BBOX, PROCESSING_BBOX
+    global OUT, WEB, SOLWEIG_OUT, SCENARIO_DIRS, SCENARIO_DIFF_DIR, OVERTURE_GEOJSON
+    AOI_NAME = _aoi_mod.AOI_NAME
+    AOI_CENTER_LAT = _aoi_mod.AOI_CENTER_LAT
+    AOI_CENTER_LON = _aoi_mod.AOI_CENTER_LON
+    TILE_BBOX = _aoi_mod.TILE_BBOX
+    PROCESSING_BBOX = _aoi_mod.PROCESSING_BBOX
+    OUT = REPO / f"inputs/processed/{AOI_NAME}_baseline"
+    WEB = OUT / "web"
+    WEB.mkdir(parents=True, exist_ok=True)
+    SOLWEIG_OUT = OUT / "output_folder"
+    SCENARIO_DIRS = {
+        scen: REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}"
+        for scen in ("year10", "mature")
+    }
+    SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}/diffs"
+    _default_overture = REPO / f"inputs/raw/durham/overture/buildings_{AOI_NAME}.geojson"
+    _legacy_overture = REPO / "inputs/raw/durham/overture/buildings_durham_hayti.geojson"
+    OVERTURE_GEOJSON = _default_overture if _default_overture.exists() else _legacy_overture
 
 # Source rasters (Building_DSM, DEM, Trees, Landcover, etc.) always live in
 # the laptop's canonical inputs/processed/{AOI}_baseline/ — they're inputs to
@@ -73,7 +106,7 @@ else:
     SOLWEIG_OUT = OUT / "output_folder"
     SCENARIO_DIRS = {scen: REPO / f"inputs/processed/{AOI_NAME}_scenario_{scen}"
                      for scen in ("year10", "mature")}
-    SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}_scenario_diffs"
+    SCENARIO_DIFF_DIR = REPO / f"outputs/{AOI_NAME}/diffs"
     WEB = OUT / "web"
 
 
@@ -584,26 +617,29 @@ def main() -> None:
     # dropped non-building tall stuff (trees, noise, awnings) by gating with
     # Overture footprints. Positive (red) where Overture added a roof that
     # LiDAR missed (post-2015 buildings, mostly).
-    with rasterio.open(OUT / "Building_DSM.tif") as ds:
-        new_dsm = ds.read(1); b = ds.bounds; nd = ds.nodata
-    with rasterio.open(OUT / "Building_DSM.preMS.tif") as ds:
-        raw_dsm = ds.read(1); raw_nd = ds.nodata
-    valid = (new_dsm != nd) & (raw_dsm != raw_nd)
-    diff = np.where(valid, new_dsm - raw_dsm, 0).astype("float32")
-    Image.fromarray(_to_rgba_diff(diff, vlim=30.0), "RGBA").save(WEB / "dsm_diff.png", optimize=True)
-    diff_data = write_data_bin(diff, WEB / "dsm_diff.bin", b, nodata=None)
-    tl = T_TO_LL.transform(b.left, b.top); tr = T_TO_LL.transform(b.right, b.top)
-    br = T_TO_LL.transform(b.right, b.bottom); bl = T_TO_LL.transform(b.left, b.bottom)
-    rasters_meta.append({
-        "id":"dsm_diff",
-        "label":"DSM diff (current − raw LiDAR; red=Overture added, blue=tree/noise removed)",
-        "group":"Intermediate (Stage 3 build)",
-        "url":"dsm_diff.png", "coords":[list(tl),list(tr),list(br),list(bl)], "visible":True,
-        "data": diff_data, "display": {"kind":"continuous", "unit":"m", "fmt":"+.1f"},
-    })
-    print(f"  dsm_diff.png                   {diff.shape[1]}×{diff.shape[0]}  "
-          f"png {(WEB/'dsm_diff.png').stat().st_size//1024} KB  "
-          f"bin {(WEB/'dsm_diff.bin').stat().st_size//1024} KB")
+    if (OUT / "Building_DSM.tif").exists() and (OUT / "Building_DSM.preMS.tif").exists():
+        with rasterio.open(OUT / "Building_DSM.tif") as ds:
+            new_dsm = ds.read(1); b = ds.bounds; nd = ds.nodata
+        with rasterio.open(OUT / "Building_DSM.preMS.tif") as ds:
+            raw_dsm = ds.read(1); raw_nd = ds.nodata
+        valid = (new_dsm != nd) & (raw_dsm != raw_nd)
+        diff = np.where(valid, new_dsm - raw_dsm, 0).astype("float32")
+        Image.fromarray(_to_rgba_diff(diff, vlim=30.0), "RGBA").save(WEB / "dsm_diff.png", optimize=True)
+        diff_data = write_data_bin(diff, WEB / "dsm_diff.bin", b, nodata=None)
+        tl = T_TO_LL.transform(b.left, b.top); tr = T_TO_LL.transform(b.right, b.top)
+        br = T_TO_LL.transform(b.right, b.bottom); bl = T_TO_LL.transform(b.left, b.bottom)
+        rasters_meta.append({
+            "id":"dsm_diff",
+            "label":"DSM diff (current − raw LiDAR; red=Overture added, blue=tree/noise removed)",
+            "group":"Intermediate (Stage 3 build)",
+            "url":"dsm_diff.png", "coords":[list(tl),list(tr),list(br),list(bl)], "visible":True,
+            "data": diff_data, "display": {"kind":"continuous", "unit":"m", "fmt":"+.1f"},
+        })
+        print(f"  dsm_diff.png                   {diff.shape[1]}×{diff.shape[0]}  "
+              f"png {(WEB/'dsm_diff.png').stat().st_size//1024} KB  "
+              f"bin {(WEB/'dsm_diff.bin').stat().st_size//1024} KB")
+    else:
+        print("  skip dsm_diff (Building_DSM.tif and/or Building_DSM.preMS.tif missing — run notebook 2)")
 
     LC_LABELS = {1: "paved", 2: "building", 5: "grass / under-tree",
                  6: "bare soil", 7: "water"}
@@ -809,10 +845,16 @@ def main() -> None:
     # ---------------- Trees CDSM diff (scenario − baseline) -----------------
     print("\n  -- Trees CDSM diff layers (scenario − baseline) --")
     canopy_disp_diff = {"kind":"continuous", "unit":"m canopy added", "fmt":"+.1f"}
-    with rasterio.open(OUT / "Trees.tif") as ds:
-        base_t = ds.read(1).astype("float32")
-        t_bds = ds.bounds
+    if not (OUT / "Trees.tif").exists():
+        print("  skip Trees diffs (Trees.tif missing — run notebook 2)")
+        base_t = None
+    else:
+        with rasterio.open(OUT / "Trees.tif") as ds:
+            base_t = ds.read(1).astype("float32")
+            t_bds = ds.bounds
     for scen, vmax_canopy in (("year10", 5.0), ("mature", 12.0)):
+        if base_t is None:
+            continue
         scen_t_path = SCENARIO_DIRS[scen] / "Trees.tif"
         if not scen_t_path.exists():
             continue
@@ -873,9 +915,19 @@ def main() -> None:
 # Notebook entry points (added during repo restructure).
 # ============================================================================
 
-def build_bundle(prefix: str | None = None, run_root: str | None = None) -> Path:
-    """Generate the inspector bundle for a given OUTPUT_PREFIX. Returns the
-    path of the web/ directory."""
+def build_bundle(aoi: str | None = None, prefix: str | None = None,
+                 run_root: str | None = None) -> Path:
+    """Generate the inspector bundle for a given AOI profile. Returns the
+    path of the web/ directory.
+
+    `aoi` is an AOI profile name (e.g., "hayti_demo" or "durham_hayti").
+    If supplied, this module's AOI-dependent paths are reset via `set_aoi`.
+    `prefix` is an optional override of OUTPUT_PREFIX (defaults to the AOI
+    name). `run_root` is the legacy override for inspecting a pulled pod
+    run.
+    """
+    if aoi is not None:
+        set_aoi(aoi)
     if run_root is not None:
         os.environ["INSPECT_RUN_ROOT"] = run_root
     if prefix is not None:
@@ -942,7 +994,7 @@ def _patch_index_for_shot(src_html: str, cfg: dict) -> str:
     return html
 
 
-def capture_screenshots(prefix: str | None = None,
+def capture_screenshots(aoi: str | None = None, prefix: str | None = None,
                          output_dir: Path | None = None) -> dict:
     """Render slide-ready PNG screenshots via headless Chrome. Requires
     `google-chrome` on PATH. Returns a dict of variant_name -> output_path.
@@ -952,6 +1004,8 @@ def capture_screenshots(prefix: str | None = None,
     import time as _time
     import urllib.request as _urlreq
 
+    if aoi is not None:
+        set_aoi(aoi)
     if prefix is not None:
         os.environ["OUTPUT_PREFIX"] = prefix
     src_html = (WEB / "index.html").read_text()

@@ -28,16 +28,21 @@ neighborhood scale.
 
 ## Repository tour
 
-The analysis is organised as four marimo notebooks under `notebooks/`. Each
-notebook is a regular Python file. Cells are idempotent: an expensive step
-that has already produced its output is skipped on re-run.
+The analysis lives in a single marimo notebook, `notebooks/analysis.py`. It
+is a regular Python file; cells are idempotent so an expensive step that
+has already produced its output is skipped on re-run. End-to-end on the
+demo AOI takes roughly 45 minutes on CPU; subsequent re-runs return in
+seconds.
 
-| notebook | purpose |
-|---|---|
-| `0_fetch_data.py` | Downloads Durham planting sites, EnviroAtlas land cover, KRDU observations, HRRR meteorological forcing, and Overture buildings for the AOI. Ends with a MapLibre view of the raw inputs. |
-| `2_prepare_buildings.py` | Builds the four SOLWEIG-ready rasters from raw LiDAR, applies the Overture footprint patch to the building DSM, and shows pre- and post-patch inspector views. |
-| `1_run_scenarios.py` | Runs SOLWEIG for the baseline, then burns canopy disks for the year10 and mature scenarios and runs SOLWEIG for each. Includes the baseline sanity report and a final inspector that overlays every output layer. |
-| `3_analyze_results.py` | Computes the headline statistics, regenerates the figures used in the conference deck, and captures slide-ready PNG screenshots of the inspector. |
+The notebook covers the full pipeline in 17 numbered sections: data
+acquisition (sections 1–6), SOLWEIG-ready raster construction with the
+Overture-gated DSM patch (sections 7–10), the three SOLWEIG runs and the
+sanity report (sections 11–13), the headline statistics (section 14), the
+conference-deck figures (section 15), and the limitations and citations
+(sections 16–17). A static preview is published via molab — see "View
+on molab" below. Inspector iframes are interactive only in the live
+notebook; in the static preview they appear empty because they point at a
+localhost server that exists only while the notebook is being executed.
 
 Reusable code lives in `src/`:
 
@@ -67,8 +72,8 @@ is gitignored.
 - Roughly 10 GB of free disk for the conda environment and cached inputs.
 - `git` on PATH. The conda environment provides `gdal-bin` and `pdal`.
 - Optional: an NVIDIA GPU with CUDA. Without one, SOLWEIG falls back to CPU.
-- Optional: `google-chrome` on PATH if the headless screenshot cell in
-  notebook 3 is to be exercised.
+- Optional: `google-chrome` on PATH if the headless inspector-screenshot
+  cell is to be exercised.
 
 ### 2. Create the environment
 
@@ -88,51 +93,54 @@ Verify the install:
 python -c "import marimo, solweig_gpu, rasterio, geopandas, pdal; print('ok')"
 ```
 
-### 3. Open the first notebook
-
-Marimo notebooks are plain Python files. Two invocation modes are useful.
+### 3. Open the notebook
 
 ```bash
 # Edit interactively; opens a reactive UI in the browser.
-marimo edit notebooks/0_fetch_data.py
+marimo edit notebooks/analysis.py
 
 # Run headless and inspect outputs on disk.
-marimo run notebooks/0_fetch_data.py
+marimo run notebooks/analysis.py
 ```
 
-Both modes print a local URL (default `http://localhost:2718`).
+Both modes print a local URL (default `http://localhost:2718`). The
+notebook defaults to the `hayti_demo` AOI; pick `durham_hayti` from the
+dropdown at the top to switch to the production tile.
 
-### 4. Recommended execution order
-
-1. `notebooks/0_fetch_data.py` retrieves everything that does not require
-   PDAL.
-2. `notebooks/2_prepare_buildings.py` performs the LiDAR retrieval and the
-   Overture-gated building DSM patch. This is the slowest notebook on a
-   first run.
-3. `notebooks/1_run_scenarios.py` runs SOLWEIG for the baseline and both
-   scenarios. CPU runs of the 2 km × 2 km Hayti tile take roughly 30 minutes
-   per scenario. An A6000 finishes in roughly 2 minutes per scenario.
-4. `notebooks/3_analyze_results.py` regenerates the figures and writes the
-   headline file under `outputs/{prefix}/`.
-
-The numbering reflects the conceptual reading order. The execution order is
-0 → 2 → 1 → 3 because notebook 1 needs the patched `Building_DSM.tif`
-produced by notebook 2.
-
-### 5. Quick smoke test
+### 4. Quick smoke test
 
 ```bash
-python -c "from src.aoi import AOI_NAME, SIM_DATE; print(AOI_NAME, SIM_DATE)"
-# durham_hayti 2025-06-23
+python -c "from src.aoi import get_aoi; c = get_aoi('hayti_demo'); print(c.name, c.size_km, c.sim_date)"
+# hayti_demo 0.6 2025-06-23
 ```
 
-### 6. Selecting a different AOI
+### 5. AOI profiles
 
-Configuration lives in `src/aoi.py`. Edit `AOI_NAME`, `AOI_CENTER_LAT`,
-`AOI_CENTER_LON`, `AOI_SIZE_KM`, and `SIM_DATE`, then run all four notebooks
-in order. Outputs are namespaced by `OUTPUT_PREFIX`, which defaults to
-`AOI_NAME` and may be overridden via the environment variable of the same
-name or via the prefix input field at the top of notebooks 1 and 3.
+Two AOI profiles ship with the project, registered in `src/aoi.py`:
+
+| profile | size | purpose |
+|---|---|---|
+| `hayti_demo` | 600 m × 600 m | Smoke-test box centred on the densest cluster of planted sites in Hayti (163 of the 245 sites). The full pipeline runs end-to-end on this AOI in roughly 45 minutes on CPU and is the default selected at the top of the notebook. |
+| `durham_hayti` | 2 km × 2 km | Production AOI used for the headline figures and the conference deck. Full SOLWEIG runs take roughly 30–40 minutes per scenario on CPU. |
+
+The **AOI profile** dropdown sits immediately below the intro section.
+Pick `hayti_demo` to verify the pipeline end-to-end without burning an
+hour on PDAL and SOLWEIG; flip to `durham_hayti` for the production run.
+Outputs are namespaced by AOI under `inputs/processed/{aoi}_*`,
+`outputs/{aoi}/`, and `figures/{aoi}/slides/`, so the two profiles never
+overwrite each other and you can switch back and forth at any time.
+
+To register a new AOI, append an entry to `AOI_PROFILES` in `src/aoi.py`
+following the same field layout, then add its name to the dropdown options
+in the notebook's `_aoi_selector` cell.
+
+### 6. View on molab
+
+The notebook has been snapshotted into `notebooks/__marimo__/session/`
+so its outputs render in molab's static GitHub preview. Once the repo is
+pushed to GitHub, replace `github.com` in the URL with
+`molab.marimo.io/github` to share a viewer-friendly link to the rendered
+analysis.
 
 ## Data sources
 
@@ -152,10 +160,8 @@ radiant-temperature/
 ├── README.md
 ├── environment.yml
 ├── notebooks/
-│   ├── 0_fetch_data.py
-│   ├── 1_run_scenarios.py
-│   ├── 2_prepare_buildings.py
-│   ├── 3_analyze_results.py
+│   ├── analysis.py
+│   ├── __marimo__/session/analysis.py.json   (committed; molab preview)
 │   └── assets/
 ├── src/
 ├── inputs/

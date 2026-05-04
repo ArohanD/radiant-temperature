@@ -46,10 +46,37 @@ from rasterio.plot import show as rio_show
 import geopandas as gpd
 import pandas as pd
 
+import src.aoi as _aoi_mod
 from src.aoi import (
     AOI_NAME, AOI_CENTER_LAT, AOI_CENTER_LON, AOI_SIZE_KM,
     SIM_DATE, TILE_BBOX,
 )
+
+
+def set_aoi(profile: str) -> None:
+    """Switch this module's AOI-dependent paths to a different profile.
+
+    Call once from a notebook before invoking the `fig_*` entry points so
+    that the module-level constants (BASE, OUT, AOI_NAME, ...) reflect the
+    chosen AOI. Without this call, the module uses the AOI active at
+    import time (typically `hayti_demo` by default).
+    """
+    import importlib
+    import os as _os
+    _os.environ["AOI_PROFILE"] = profile
+    importlib.reload(_aoi_mod)
+    global AOI_NAME, AOI_CENTER_LAT, AOI_CENTER_LON, AOI_SIZE_KM
+    global SIM_DATE, TILE_BBOX, BASE, OUT
+    AOI_NAME = _aoi_mod.AOI_NAME
+    AOI_CENTER_LAT = _aoi_mod.AOI_CENTER_LAT
+    AOI_CENTER_LON = _aoi_mod.AOI_CENTER_LON
+    AOI_SIZE_KM = _aoi_mod.AOI_SIZE_KM
+    SIM_DATE = _aoi_mod.SIM_DATE
+    TILE_BBOX = _aoi_mod.TILE_BBOX
+    BASE = REPO / f"inputs/processed/{AOI_NAME}_baseline"
+    OUT = REPO / f"figures/{AOI_NAME}/slides"
+    OUT.mkdir(parents=True, exist_ok=True)
+
 
 BASE = REPO / f"inputs/processed/{AOI_NAME}_baseline"
 OUT = REPO / f"figures/{AOI_NAME}/slides"
