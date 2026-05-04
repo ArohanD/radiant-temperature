@@ -58,7 +58,9 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl());
 
 map.on("load", () => {
-  // AOI footprint
+  // AOI footprint — also use its bounds to auto-fit the map so the
+  // overlay rasters render at full pixel density (otherwise sub-pixel
+  // cooling cells get downsampled to invisibility at low zoom).
   fetch("aoi.geojson")
     .then((r) => r.json())
     .then((data) => {
@@ -67,6 +69,14 @@ map.on("load", () => {
         id: "aoi-line", type: "line", source: "aoi",
         paint: { "line-color": "#d62728", "line-width": 2 },
       });
+      const ring = data.features[0].geometry.coordinates[0];
+      const lons = ring.map((p) => p[0]);
+      const lats = ring.map((p) => p[1]);
+      map.fitBounds(
+        [[Math.min(...lons), Math.min(...lats)],
+         [Math.max(...lons), Math.max(...lats)]],
+        { padding: 60, duration: 0 }
+      );
     });
 
   // Planted-site points

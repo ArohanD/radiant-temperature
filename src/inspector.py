@@ -139,7 +139,7 @@ def build_bundle(aoi: str | None = None) -> Path:
             "label": "Baseline Tmrt at peak hour (°C)",
             "url": "tmrt_peak.png",
             "coords": _bounds_to_coords(bounds),
-            "visible": True,
+            "visible": False,
         })
 
     diff_src = REPO / f"outputs/{cfg.name}/diffs/dutci_peak_mature.tif"
@@ -151,7 +151,7 @@ def build_bundle(aoi: str | None = None) -> Path:
             "label": "ΔUTCI mature scenario (°C; blue = cooler)",
             "url": "dutci_mature.png",
             "coords": _bounds_to_coords(bounds),
-            "visible": False,
+            "visible": True,
         })
 
     (out_dir / "aoi.geojson").write_text(json.dumps(_aoi_box_geojson(cfg)))
