@@ -11,12 +11,12 @@ def _intro(mo):
 
     Durham's 2025–2028 urban-canopy initiative places 8,500 trees across
     the city, with 85 percent of plantings concentrated in eight
-    neighbourhoods that the United States Environmental Protection
+    neighborhoods that the United States Environmental Protection
     Agency identifies as priority areas. Hayti, redlined in 1937 and
     physically bisected by the Durham Freeway in the 1960s, is one of
-    those neighbourhoods. This analysis quantifies the pedestrian
-    heat-stress reduction the planting programme delivers on the
-    hottest clear day of summer, at one-metre resolution.
+    those neighborhoods. This analysis quantifies the pedestrian
+    heat-stress reduction the planting program delivers on the
+    hottest clear day of summer, at one-meter resolution.
 
     The pipeline runs in five stages, all in this notebook:
 
@@ -32,9 +32,10 @@ def _intro(mo):
        three times: a baseline plus two planting scenarios (year 10 and
        mature canopy), using the GPU implementation of
        [Kamath et al. (2026)](https://joss.theoj.org/papers/10.21105/joss.09535).
-    4. **Validate** the baseline output with three physical sanity
-       checks (hot-pavement, pre-dawn uniformity, solar geometry).
-    5. **Analyse** the output: headline statistics, figures, and
+    4. **Validate** the baseline output with three physical
+       plausibility checks (hot-pavement, pre-dawn uniformity, solar
+       geometry).
+    5. **Analyze** the output: headline statistics, figures, and
        limitations.
 
     A few practical notes for the reader:
@@ -44,11 +45,9 @@ def _intro(mo):
       45 minutes on CPU; **`durham_hayti`** is the 2 km × 2 km
       production AOI used for the headline numbers. Pick from the
       dropdown below; everything downstream re-resolves automatically.
-    - Inspector cells embed an interactive MapLibre view. **In the
-      molab static preview these iframes appear empty** because they
-      point at a localhost server that only exists while the notebook
-      is being executed. To see the inspector live, run
-      `marimo edit notebooks/analysis.py` locally.
+    - Section 10 produces a self-contained MapLibre web app for the
+      full-fidelity 3D view. It runs outside the notebook (instructions
+      in that section).
     - Long-running cells (PDAL pull, SOLWEIG runs) are idempotent: the
       output is detected on disk and the cell is skipped. The first
       run on a fresh AOI takes the full ~45 minutes; subsequent runs
@@ -69,6 +68,54 @@ def _setup():
     return REPO, mo
 
 
+@app.cell
+def _viz_helpers():
+    import numpy as _np
+    import matplotlib.pyplot as _plt
+    import rasterio as _rio
+    from matplotlib.colors import ListedColormap as _ListedColormap
+    from matplotlib.colors import BoundaryNorm as _BoundaryNorm
+
+    _UMEP_PALETTE = {1: "#7d7d7d", 2: "#d62728", 5: "#2ca02c",
+                      6: "#deb887", 7: "#1f77b4"}
+    _UMEP_LABELS = {1: "paved", 2: "building", 5: "grass / under-tree",
+                     6: "bare soil", 7: "water"}
+
+    def show_raster(path, title=None, cmap="viridis", vmin=None, vmax=None,
+                     palette=False, figsize=(6.5, 5.5)):
+        """Render a 1m raster as a matplotlib Figure."""
+        with _rio.open(path) as ds:
+            arr = ds.read(1).astype("float32")
+            nd = ds.nodata
+        if nd is not None:
+            arr = _np.where(arr == nd, _np.nan, arr)
+        fig, ax = _plt.subplots(figsize=figsize)
+        if palette:
+            codes = sorted(c for c in _UMEP_PALETTE if _np.any(arr == c))
+            if not codes:
+                ax.text(0.5, 0.5, "no UMEP-coded cells",
+                         ha="center", va="center", transform=ax.transAxes)
+            else:
+                cmap_obj = _ListedColormap([_UMEP_PALETTE[c] for c in codes])
+                bounds = [c - 0.5 for c in codes] + [codes[-1] + 0.5]
+                norm = _BoundaryNorm(bounds, cmap_obj.N)
+                im = ax.imshow(arr, cmap=cmap_obj, norm=norm,
+                                interpolation="nearest")
+                cbar = fig.colorbar(im, ax=ax, ticks=codes, shrink=0.8)
+                cbar.ax.set_yticklabels(
+                    [f"{c}: {_UMEP_LABELS.get(c, '?')}" for c in codes])
+        else:
+            im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax)
+            fig.colorbar(im, ax=ax, shrink=0.8)
+        ax.set_title(title or path.name, fontsize=10)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        fig.tight_layout()
+        return fig
+
+    return (show_raster,)
+
+
 @app.cell(hide_code=True)
 def _section_aoi(mo):
     mo.md(r"""
@@ -76,7 +123,7 @@ def _section_aoi(mo):
 
     Two AOI profiles ship with the project:
 
-    - **`hayti_demo`** is a 600 m × 600 m test area centred on the
+    - **`hayti_demo`** is a 600 m × 600 m test area centered on the
       densest cluster of planted sites in Hayti (163 of the 245 sites
       fall inside it). Use this for a fast end-to-end pass.
     - **`durham_hayti`** is the 2 km × 2 km production AOI used for the
@@ -120,7 +167,7 @@ def _aoi_config(REPO, aoi, mo):
         f"| parameter | value |\n|---|---|\n"
         f"| name | `{cfg.name}` |\n"
         f"| description | {cfg.description} |\n"
-        f"| centre (lat, lon) | {cfg.center_lat:.4f}, {cfg.center_lon:.4f} |\n"
+        f"| center (lat, lon) | {cfg.center_lat:.4f}, {cfg.center_lon:.4f} |\n"
         f"| size | {cfg.size_km} km × {cfg.size_km} km |\n"
         f"| simulation date | {cfg.sim_date} |\n"
         f"| UTC offset | {cfg.utc_offset:+d} hours |\n"
@@ -181,7 +228,7 @@ def _section_fetches(mo):
       and 22,418 existing trees. Filter to `present == "Planting Site"`
       and clip to the AOI; for the production Hayti tile, 245 sites
       fall inside.
-    - **EnviroAtlas MULC raster.** A one-metre land-cover product
+    - **EnviroAtlas MULC raster.** A one-meter land-cover product
       published by the United States Environmental Protection Agency.
       Reported accuracy is roughly 83 percent against NAIP imagery.
       The 2010 vintage is the weakest dataset in the chain but
@@ -192,7 +239,7 @@ def _section_fetches(mo):
       Used to identify the hottest clear-sky day of the summer (the
       simulation date) and to cross-check the meteorological forcing
       in the validation step.
-    - **Overture buildings.** Open-licence building polygons with
+    - **Overture buildings.** Open-license building polygons with
       height attributes. Roughly two-thirds of the polygons in the
       AOI carry a measured height; the rest contribute footprint
       geometry only.
@@ -201,7 +248,7 @@ def _section_fetches(mo):
 
 
 @app.cell
-def _fetch_planting_sites(REPO, mo):
+def _fetch_planting_sites(REPO, cfg, mo):
     import json as _json
     import urllib.parse as _up
     import urllib.request as _ur
@@ -233,13 +280,33 @@ def _fetch_planting_sites(REPO, mo):
                 break
         _dst.write_text(_json.dumps({"type": "FeatureCollection", "features": _feats}))
         _msg = f"wrote {len(_feats):,} features → {_dst.relative_to(REPO)}"
-    trees_status = mo.md(f"**Durham trees and planting sites.** `{_msg}`")
-    trees_status
+
+    import geopandas as _gpd
+    import matplotlib.pyplot as _plt
+    import pyproj as _pp
+    from shapely.geometry import box as _shp_box
+    _gdf = _gpd.read_file(_dst)
+    _planting = _gdf[_gdf["present"] == "Planting Site"]
+    _trans = _pp.Transformer.from_crs("EPSG:32617", "EPSG:4326", always_xy=True)
+    _x0, _y0, _x1, _y1 = cfg.tile_bbox
+    _lon0, _lat0 = _trans.transform(_x0, _y0)
+    _lon1, _lat1 = _trans.transform(_x1, _y1)
+    _aoi_box = _gpd.GeoSeries([_shp_box(_lon0, _lat0, _lon1, _lat1)], crs="EPSG:4326")
+    _fig, _ax = _plt.subplots(figsize=(7, 6))
+    _planting.plot(ax=_ax, color="#2ca02c", markersize=1, alpha=0.4)
+    _aoi_box.boundary.plot(ax=_ax, color="red", linewidth=2)
+    _ax.set_title(f"Durham planting sites ({len(_planting):,} citywide; "
+                  f"red box = {cfg.name} AOI)", fontsize=10)
+    _ax.set_xlabel("longitude"); _ax.set_ylabel("latitude")
+    _fig.tight_layout()
+
+    plantings_caption = mo.md(f"**Durham trees and planting sites.** `{_msg}`")
+    mo.vstack([plantings_caption, _fig])
     return
 
 
 @app.cell
-def _fetch_mulc(REPO, mo):
+def _fetch_mulc(REPO, cfg, mo):
     import urllib.request as _ur
     import zipfile as _zip
     _dst = REPO / "inputs/raw/durham/enviroatlas_mulc/DNC_MULC.tif"
@@ -263,13 +330,37 @@ def _fetch_mulc(REPO, mo):
             if _cands:
                 _cands[0].rename(_dst)
         _msg = f"wrote {_dst.relative_to(REPO)}"
-    mulc_status = mo.md(f"**EnviroAtlas MULC raster.** `{_msg}`")
-    mulc_status
+
+    import rasterio as _rio
+    import matplotlib.pyplot as _plt
+    import pyproj as _pp
+    import numpy as _np
+    with _rio.open(_dst) as _ds:
+        _scale = max(_ds.width // 800, _ds.height // 800, 1)
+        _arr = _ds.read(1, out_shape=(_ds.height // _scale, _ds.width // _scale))
+        _bounds = _ds.bounds
+        _crs_src = _ds.crs.to_string()
+    _trans = _pp.Transformer.from_crs("EPSG:32617", _crs_src, always_xy=True)
+    _x0, _y0, _x1, _y1 = cfg.tile_bbox
+    _bx0, _by0 = _trans.transform(_x0, _y0)
+    _bx1, _by1 = _trans.transform(_x1, _y1)
+    _fig, _ax = _plt.subplots(figsize=(7, 6))
+    _ax.imshow(_arr, cmap="tab10",
+                extent=[_bounds.left, _bounds.right, _bounds.bottom, _bounds.top])
+    _ax.add_patch(_plt.Rectangle((_bx0, _by0), _bx1 - _bx0, _by1 - _by0,
+                                    fill=False, edgecolor="red", linewidth=2))
+    _ax.set_title(f"DNC_MULC.tif (city-wide, {_scale}× downsampled; "
+                  f"red box = {cfg.name} AOI)", fontsize=10)
+    _ax.set_xlabel(_crs_src + " easting"); _ax.set_ylabel("northing")
+    _fig.tight_layout()
+
+    mulc_caption = mo.md(f"**EnviroAtlas MULC raster.** `{_msg}`")
+    mo.vstack([mulc_caption, _fig])
     return
 
 
 @app.cell
-def _fetch_krdu(REPO, mo):
+def _fetch_krdu(REPO, cfg, mo):
     import urllib.parse as _up
     import urllib.request as _ur
     _dst = REPO / "inputs/raw/durham/krdu_asos/krdu_2025_summer.csv"
@@ -290,8 +381,27 @@ def _fetch_krdu(REPO, mo):
         _req = _ur.Request(_url, headers={"User-Agent": "radiant-temperature/0.1"})
         _dst.write_bytes(_ur.urlopen(_req, timeout=120).read())
         _msg = f"wrote {_dst.relative_to(REPO)}"
-    krdu_status = mo.md(f"**KRDU ASOS observations.** `{_msg}`")
-    krdu_status
+
+    import pandas as _pd
+    import matplotlib.pyplot as _plt
+    _df = _pd.read_csv(_dst)
+    _df = _df[_df["tmpf"] != "M"].copy()
+    _df["valid"] = _pd.to_datetime(_df["valid"])
+    _df["tmpc"] = (_df["tmpf"].astype(float) - 32) * 5 / 9
+    _fig, _ax = _plt.subplots(figsize=(8, 3.5))
+    _ax.plot(_df["valid"], _df["tmpc"], lw=0.5, color="tab:red")
+    _ax.axvline(_pd.Timestamp(cfg.sim_date), color="black", linestyle="--",
+                  label=f"sim date {cfg.sim_date}")
+    _ax.set_xlabel("date")
+    _ax.set_ylabel("air temperature (°C)")
+    _ax.set_title("KRDU summer 2025 hourly observations", fontsize=10)
+    _ax.legend(loc="lower left", fontsize=9)
+    _ax.grid(alpha=0.3)
+    _fig.autofmt_xdate()
+    _fig.tight_layout()
+
+    krdu_caption = mo.md(f"**KRDU ASOS observations.** `{_msg}`")
+    mo.vstack([krdu_caption, _fig])
     return
 
 
@@ -301,11 +411,28 @@ def _fetch_overture(REPO, cfg, mo):
     overture_path = REPO / f"inputs/raw/durham/overture/buildings_{cfg.name}.geojson"
     if not overture_path.exists():
         _fetch(cfg.name, cfg.processing_bbox, overture_path)
-    overture_status = mo.md(
+
+    import geopandas as _gpd
+    import matplotlib.pyplot as _plt
+    _gdf = _gpd.read_file(overture_path)
+    _has_h = _gdf["height"].notna().sum() if "height" in _gdf.columns else 0
+    _fig, _ax = _plt.subplots(figsize=(7, 6))
+    _gdf.plot(ax=_ax, column="height" if "height" in _gdf.columns else None,
+                cmap="viridis", edgecolor="black", linewidth=0.2,
+                missing_kwds={"color": "lightgray", "edgecolor": "black", "linewidth": 0.2},
+                legend=True, legend_kwds={"label": "height (m)", "shrink": 0.7})
+    _ax.set_title(f"Overture footprints in {cfg.name} AOI "
+                  f"({len(_gdf)} polygons, {_has_h} with measured height)",
+                  fontsize=10)
+    _ax.set_aspect("equal")
+    _ax.set_xticks([]); _ax.set_yticks([])
+    _fig.tight_layout()
+
+    overture_caption = mo.md(
         f"**Overture buildings.** `{overture_path.relative_to(REPO)} "
         f"({overture_path.stat().st_size // 1024:,} KB)`"
     )
-    overture_status
+    mo.vstack([overture_caption, _fig])
     return (overture_path,)
 
 
@@ -344,13 +471,13 @@ def _section_lidar_check(mo):
 
     The DSM and DEM are derived from the NC Phase 3 LiDAR product
     (NOAA dataset 6209), accessed as an Entwine Point Tile store. The
-    actual PDAL retrieval happens later in the pipeline (sections 6-9
-    below), because the operation is slow and depends on the
+    actual PDAL retrieval happens later in the pipeline (sections
+    6 and 7 below), because the operation is slow and depends on the
     processing bounding box. The cell below confirms only that the
     endpoint is reachable.
 
     Note that the NC product is published in US Survey Feet. The PDAL
-    pipeline must convert to metres explicitly. Forgetting this
+    pipeline must convert to meters explicitly. Forgetting this
     conversion is the most common failure mode with North Carolina
     LiDAR.
     """)
@@ -377,46 +504,11 @@ def _lidar_url_check(mo):
 
 
 @app.cell(hide_code=True)
-def _section_inputs_inspector(mo):
-    mo.md(r"""
-    ## 6. Visual confirmation: raw inputs
-
-    The MapLibre view below renders the AOI footprint, the planted
-    site point markers, the Overture building polygons, and the
-    EnviroAtlas land cover on top of an OpenStreetMap basemap. Toggle
-    layers from the panel on the left. Use this view to confirm that
-    the AOI box covers the part of Hayti the analysis targets and
-    that the planted-site points are clustered as expected.
-
-    *Static-preview readers: the iframe below is empty in the molab
-    snapshot. The inspector renders only when the notebook is run
-    locally with `marimo edit`.*
-    """)
-    return
-
-
-@app.cell
-def _inputs_inspector_view(REPO, aoi, mo):
-    from src import inspector as _inspector
-    _inspector.set_aoi(aoi.value)
-    _bundle = _inspector.build_bundle()
-    _url = _inspector.serve(_bundle)
-    inputs_inspector_md = mo.md(
-        f"Inspector bundle: `{_bundle.relative_to(REPO)}`. "
-        f"[Open in a new tab]({_url})."
-    )
-    inputs_inspector_md
-    inputs_inspector_iframe = mo.iframe(_url, width="100%", height=600)
-    inputs_inspector_iframe
-    return
-
-
-@app.cell(hide_code=True)
 def _section_buildings_overview(mo):
     mo.md(r"""
-    ## 7. SOLWEIG-ready rasters
+    ## 6. SOLWEIG-ready rasters
 
-    Pedestrian-level radiation modelling depends on accurate
+    Pedestrian-level radiation modeling depends on accurate
     three-dimensional geometry of buildings and canopy. The challenge
     is that LiDAR cannot distinguish trees from buildings: both
     surfaces return the laser pulse. The canonical solution,
@@ -447,36 +539,41 @@ def _section_buildings_overview(mo):
 @app.cell(hide_code=True)
 def _section_lidar_dsm(mo):
     mo.md(r"""
-    ### 7a. LiDAR first-return DSM
+    ### 6a. LiDAR first-return DSM
 
     The cell below issues a PDAL pipeline against the NC Phase 3
-    LiDAR Entwine Point Tile store and writes a one-metre first-return
+    LiDAR Entwine Point Tile store and writes a one-meter first-return
     raster clipped to the processing bounding box. The output captures
     every return surface, so it includes ground, buildings, canopy,
-    and laser artefacts. The Overture-gated patch in section 8 reduces
+    and laser artifacts. The Overture-gated patch in section 7 reduces
     this to ground plus buildings.
     """)
     return
 
 
 @app.cell
-def _lidar_dsm(REPO, cfg, mo):
+def _lidar_dsm(REPO, cfg, mo, show_raster):
     from src.buildings import pull_lidar_dsm
     lidar_dsm_path = cfg.baseline_dir / "Building_DSM.preMS.tif"
     if not lidar_dsm_path.exists():
         pull_lidar_dsm(cfg.processing_bbox, lidar_dsm_path)
-    lidar_dsm_md = mo.md(
+    lidar_dsm_caption = mo.md(
         f"`{lidar_dsm_path.relative_to(REPO)}` "
         f"({lidar_dsm_path.stat().st_size // 1024 // 1024:,} MB)"
     )
-    lidar_dsm_md
+    lidar_dsm_fig = show_raster(
+        lidar_dsm_path,
+        title="Building_DSM.preMS.tif — raw LiDAR first-returns",
+        cmap="terrain",
+    )
+    mo.vstack([lidar_dsm_caption, lidar_dsm_fig])
     return (lidar_dsm_path,)
 
 
 @app.cell(hide_code=True)
 def _section_dem(mo):
     mo.md(r"""
-    ### 7b. Bare-earth DEM
+    ### 6b. Bare-earth DEM
 
     The DEM is built from points the LiDAR vendor classified as
     ground (`Classification == 2`), then gap-filled with
@@ -490,22 +587,24 @@ def _section_dem(mo):
 
 
 @app.cell
-def _dem(REPO, cfg, mo):
+def _dem(REPO, cfg, mo, show_raster):
     from src.buildings import build_dem
     dem_path = cfg.baseline_dir / "DEM.tif"
     if not dem_path.exists():
         build_dem(cfg.processing_bbox, dem_path)
-    dem_md = mo.md(f"`{dem_path.relative_to(REPO)}`")
-    dem_md
+    dem_caption = mo.md(f"`{dem_path.relative_to(REPO)}`")
+    dem_fig = show_raster(dem_path, title="DEM.tif — bare-earth terrain",
+                            cmap="terrain")
+    mo.vstack([dem_caption, dem_fig])
     return (dem_path,)
 
 
 @app.cell(hide_code=True)
 def _section_lc(mo):
     mo.md(r"""
-    ### 7c. Land cover
+    ### 6c. Land cover
 
-    EnviroAtlas ships MULC at one metre in EPSG:26917. The cell below
+    EnviroAtlas ships MULC at one meter in EPSG:26917. The cell below
     reprojects it to EPSG:32617 and snaps it to the AOI grid. The
     MULC nine-class palette is reclassified to UMEP codes in the next
     sub-step.
@@ -514,21 +613,24 @@ def _section_lc(mo):
 
 
 @app.cell
-def _landcover_raw(REPO, cfg, mo):
+def _landcover_raw(REPO, cfg, mo, show_raster):
     from src.buildings import build_landcover_raw
     _src = REPO / "inputs/raw/durham/enviroatlas_mulc/DNC_MULC.tif"
     landcover_raw_path = cfg.baseline_dir / "MULC_aligned.tif"
     if not landcover_raw_path.exists():
         build_landcover_raw(_src, cfg.processing_bbox, landcover_raw_path)
-    lc_raw_md = mo.md(f"`{landcover_raw_path.relative_to(REPO)}`")
-    lc_raw_md
+    lc_raw_caption = mo.md(f"`{landcover_raw_path.relative_to(REPO)}`")
+    lc_raw_fig = show_raster(landcover_raw_path,
+                                title="MULC_aligned.tif — EnviroAtlas land cover (raw classes)",
+                                cmap="tab10")
+    mo.vstack([lc_raw_caption, lc_raw_fig])
     return (landcover_raw_path,)
 
 
 @app.cell(hide_code=True)
 def _section_trees(mo):
     mo.md(r"""
-    ### 7d. Canopy CDSM and pre-patch land cover
+    ### 6d. Canopy CDSM and pre-patch land cover
 
     Canopy heights are computed as `DSM minus DEM` on cells the MULC
     raster classifies as trees. The result is written to `Trees.tif`.
@@ -544,52 +646,39 @@ def _section_trees(mo):
 
 
 @app.cell
-def _trees_and_lc(REPO, cfg, dem_path, landcover_raw_path, lidar_dsm_path, mo):
+def _trees_and_lc(
+    REPO,
+    cfg,
+    dem_path,
+    landcover_raw_path,
+    lidar_dsm_path,
+    mo,
+    show_raster,
+):
     from src.buildings import build_trees_and_landcover
     trees_path = cfg.baseline_dir / "Trees.tif"
     lc_pre_path = cfg.baseline_dir / "Landcover.preMS.tif"
     if not (trees_path.exists() and lc_pre_path.exists()):
         build_trees_and_landcover(lidar_dsm_path, dem_path, landcover_raw_path,
                                     trees_path, lc_pre_path)
-    trees_md = mo.md(
-        f"`{trees_path.relative_to(REPO)}`\n\n"
-        f"`{lc_pre_path.relative_to(REPO)}`"
+    trees_caption = mo.md(
+        f"`{trees_path.relative_to(REPO)}` — canopy heights\n\n"
+        f"`{lc_pre_path.relative_to(REPO)}` — UMEP-coded land cover (no buildings)"
     )
-    trees_md
-    return
-
-
-@app.cell(hide_code=True)
-def _section_inspect_pre(mo):
-    mo.md(r"""
-    ## 8. Pre-patch inspection
-
-    Open the inspector below and toggle on **Building DSM (raw LiDAR
-    first-returns)** and the **3D buildings (Overture)** layers. The
-    raw LiDAR surface is noisy and includes canopy and laser glints,
-    which the Overture footprints (drawn as 3D extrusions) do not
-    match. The next section applies the patch that reconciles the two.
-    """)
-    return
-
-
-@app.cell
-def _inspect_pre(aoi, mo):
-    from src import inspector as _inspector
-    _inspector.set_aoi(aoi.value)
-    pre_bundle = _inspector.build_bundle()
-    pre_url = _inspector.serve(pre_bundle)
-    pre_inspect_md = mo.md(f"[Open inspector in a new tab]({pre_url})")
-    pre_inspect_md
-    pre_inspect_iframe = mo.iframe(pre_url, width="100%", height=600)
-    pre_inspect_iframe
+    trees_fig = show_raster(trees_path,
+                              title="Trees.tif — canopy heights (m)",
+                              cmap="Greens", vmin=0)
+    lc_pre_fig = show_raster(lc_pre_path,
+                               title="Landcover.preMS.tif — UMEP classes (pre-Overture)",
+                               palette=True)
+    mo.vstack([trees_caption, mo.hstack([trees_fig, lc_pre_fig])])
     return
 
 
 @app.cell(hide_code=True)
 def _section_patch(mo):
     mo.md(r"""
-    ## 9. Apply the Overture-gated DSM patch
+    ## 7. Apply the Overture-gated DSM patch
 
     For each cell in the AOI, the patched DSM is set as follows:
 
@@ -610,48 +699,30 @@ def _section_patch(mo):
 
 
 @app.cell
-def _patch(cfg, mo, overture_path):
+def _patch(cfg, mo, overture_path, show_raster):
     from src.buildings import patch_with_overture
     patch_stats = patch_with_overture(cfg.baseline_dir, overture_path,
                                         cfg.processing_bbox)
     _rows = "\n".join(f"| {k} | {v} |" for k, v in patch_stats.items())
-    patch_md = mo.md("| metric | value |\n|---|---|\n" + _rows)
-    patch_md
-    return
-
-
-@app.cell(hide_code=True)
-def _section_inspect_post(mo):
-    mo.md(r"""
-    ## 10. Post-patch inspection
-
-    The same inspector now contains the patched layers. The most
-    informative overlay is **DSM diff (current minus raw LiDAR)**,
-    which shows in red where the patch raised the DSM (typically a
-    post-2015 building whose roof was missing from the 2015 LiDAR)
-    and in blue where it lowered the DSM (canopy and noise that were
-    not actually buildings).
-    """)
-    return
-
-
-@app.cell
-def _inspect_post(aoi, mo):
-    from src import inspector as _inspector
-    _inspector.set_aoi(aoi.value)
-    post_bundle = _inspector.build_bundle()
-    post_url = _inspector.serve(post_bundle)
-    post_inspect_md = mo.md(f"[Open inspector in a new tab]({post_url})")
-    post_inspect_md
-    post_inspect_iframe = mo.iframe(post_url, width="100%", height=600)
-    post_inspect_iframe
+    patch_table = mo.md("| metric | value |\n|---|---|\n" + _rows)
+    patched_dsm_fig = show_raster(
+        cfg.baseline_dir / "Building_DSM.tif",
+        title="Building_DSM.tif — patched (ground + buildings)",
+        cmap="terrain",
+    )
+    patched_lc_fig = show_raster(
+        cfg.baseline_dir / "Landcover.tif",
+        title="Landcover.tif — patched (Overture buildings = class 2)",
+        palette=True,
+    )
+    mo.vstack([patch_table, mo.hstack([patched_dsm_fig, patched_lc_fig])])
     return
 
 
 @app.cell(hide_code=True)
 def _section_solweig_intro(mo):
     mo.md(r"""
-    ## 11. SOLWEIG runs
+    ## 8. SOLWEIG runs
 
     [SOLWEIG](https://link.springer.com/article/10.1007/s00484-008-0162-7)
     (Solar and LongWave Environmental Irradiance Geometry; Lindberg,
@@ -661,7 +732,7 @@ def _section_solweig_intro(mo):
     load on a vertical pedestrian. Output is hourly mean radiant
     temperature (Tmrt) and Universal Thermal Climate Index (UTCI;
     [Bröde et al. 2012](https://link.springer.com/article/10.1007/s00484-011-0454-1))
-    rasters at one metre. The GPU implementation is
+    rasters at one meter. The GPU implementation is
     [Kamath et al. (2026)](https://joss.theoj.org/papers/10.21105/joss.09535).
 
     Three runs are fired in sequence:
@@ -691,7 +762,7 @@ def _section_solweig_intro(mo):
 @app.cell(hide_code=True)
 def _section_preflight(mo):
     mo.md(r"""
-    ### 11a. Pre-flight check
+    ### 8a. Pre-flight check
 
     SOLWEIG needs the four canonical rasters and the own-met file.
     Sections 4 and 7-9 produce them. The cell below confirms they are
@@ -708,7 +779,7 @@ def _preflight(cfg, mo):
     if missing_inputs:
         preflight_md = mo.md(
             f"**Missing inputs:** {missing_inputs}. "
-            f"Re-run sections 3, 4, and 7-9 above."
+            f"Re-run sections 3, 4, and 6-7 above."
         ).callout(kind="danger")
     else:
         preflight_md = mo.md("All baseline inputs present.").callout(kind="success")
@@ -719,7 +790,7 @@ def _preflight(cfg, mo):
 @app.cell(hide_code=True)
 def _section_baseline(mo):
     mo.md(r"""
-    ### 11b. Baseline SOLWEIG run
+    ### 8b. Baseline SOLWEIG run
 
     The baseline represents the AOI as it exists today. The wrapper
     in `src/solweig_runner.py` detects an NVIDIA GPU automatically
@@ -747,9 +818,9 @@ def _baseline_run(cfg, missing_inputs, mo):
 @app.cell(hide_code=True)
 def _section_scenarios(mo):
     mo.md(r"""
-    ### 11c. Scenario inputs
+    ### 8c. Scenario inputs
 
-    Each planted site is rasterised as a square canopy disk centred
+    Each planted site is rasterized as a square canopy disk centered
     on the planting point. The cells of `Trees.tif` inside the disk
     are set to the canopy height for the scenario, and the
     corresponding `Landcover.tif` cells are reclassified to UMEP
@@ -791,7 +862,7 @@ def _scenarios(REPO, cfg, mo):
 @app.cell(hide_code=True)
 def _section_scenario_runs(mo):
     mo.md(r"""
-    ### 11d. Scenario SOLWEIG runs
+    ### 8d. Scenario SOLWEIG runs
 
     With the cached `walls/` and `aspect/` tiles in place, each
     scenario runs in roughly the same time as the baseline. Both
@@ -822,7 +893,7 @@ def _scenario_runs(cfg, mo):
 @app.cell(hide_code=True)
 def _section_sanity(mo):
     mo.md(r"""
-    ## 12. Baseline sanity report
+    ## 9. Baseline plausibility report
 
     Three physical checks confirm that the baseline output is
     plausible:
@@ -843,7 +914,7 @@ def _section_sanity(mo):
 @app.cell
 def _sanity(aoi, baseline_result, mo):
     if baseline_result.get("skipped") and baseline_result.get("reason") == "missing inputs":
-        sanity_md = mo.md("Sanity check unavailable until baseline run completes.")
+        sanity_md = mo.md("Plausibility check unavailable until baseline run completes.")
     else:
         from src.evaluate import baseline_checks
         _report = baseline_checks(aoi.value)
@@ -866,52 +937,64 @@ def _sanity(aoi, baseline_result, mo):
 @app.cell(hide_code=True)
 def _section_final_inspector(mo):
     mo.md(r"""
-    ## 13. Final inspector
+    ## 10. Interactive map inspector
 
-    The inspector below carries every layer in the analysis: raw and
-    patched DSM, the two scenario canopy disks as 3D extrusions, the
-    baseline TMRT and UTCI fields at peak hour, and the peak-hour
-    cooling rasters (ΔTmrt and ΔUTCI) for both scenarios. Toggle
-    layers from the panel on the left.
+    The full-fidelity view of the analysis is a self-contained MapLibre
+    web app written to `inputs/processed/{aoi}_baseline/web/`. It
+    carries every layer the analysis produces: raw and patched DSM,
+    the two scenario canopy disks as 3D extrusions, the baseline TMRT
+    and UTCI fields at peak hour, and the peak-hour cooling rasters
+    (ΔTmrt and ΔUTCI) for both scenarios. Layer visibility, opacity,
+    pitch, and rotation are all controllable from the panel on the
+    left, and hover reveals per-pixel raster values.
+
+    The inspector lives outside the notebook because it embeds a
+    MapLibre runtime and is a few hundred KB of JavaScript. The cell
+    below builds the bundle (idempotent — skips when up to date). To
+    view it, start a static HTTP server **from the repo root**:
+
+    ```bash
+    python -m http.server 8765 --directory inputs/processed/hayti_demo_baseline/web
+    ```
+
+    Then open <http://localhost:8765/> in any browser. (Swap
+    `hayti_demo_baseline` for `durham_hayti_baseline` if running on
+    the production AOI.)
     """)
     return
 
 
 @app.cell
-def _final_inspector(aoi, mo, scenario_results):
+def _build_final_bundle(REPO, aoi, mo, scenario_results):
     if any(r.get("skipped") and r.get("reason") for r in scenario_results.values()):
-        final_md = mo.md("Inspector view requires both scenarios to complete.")
-        final_iframe = None
+        bundle_md = mo.md("Inspector bundle requires both scenarios to complete.")
     else:
         from src.evaluate import write_diff_geotiffs as _write_diff_geotiffs
         from src import inspector as _inspector
         _inspector.set_aoi(aoi.value)
         _diff_info = _write_diff_geotiffs(aoi.value)
         _bundle = _inspector.build_bundle()
-        _url = _inspector.serve(_bundle)
-        final_md = mo.md(
-            f"Peak hour: **{_diff_info['peak_hour']:02d}:00**.\n\n"
-            f"[Open inspector in a new tab]({_url})"
+        bundle_md = mo.md(
+            f"Peak hour: **{_diff_info['peak_hour']:02d}:00**. "
+            f"Inspector bundle written to `{_bundle.relative_to(REPO)}/`."
         )
-        final_iframe = mo.iframe(_url, width="100%", height=650)
-    final_md
-    final_iframe
+    bundle_md
     return
 
 
 @app.cell(hide_code=True)
 def _section_headline(mo):
     mo.md(r"""
-    ## 14. Headline statistics
+    ## 11. Headline statistics
 
     Translating SOLWEIG's pixel-level output into decision-relevant
     statistics requires careful framing. Cooling is large at the
     planted spots (around −18 to −21 °C ΔTmrt and −4.7 to −5.8 °C
     ΔUTCI on the Hayti production run) but imperceptible when
-    averaged over the neighbourhood (−0.01 °C tile-wide). The
-    local-versus-neighbourhood distinction is essential to
-    communicate honestly: the planting programme reduces heat stress
-    at the sites themselves, not across the entire neighbourhood.
+    averaged over the neighborhood (−0.01 °C tile-wide). The
+    local-versus-neighborhood distinction is essential to
+    communicate honestly: the planting program reduces heat stress
+    at the sites themselves, not across the entire neighborhood.
     Roughly 58 percent of planted pixels in the Hayti production run
     cross at least one World Health Organization heat-stress
     category, typically from extreme to very strong heat stress.
@@ -992,7 +1075,7 @@ def _headline_text(REPO, cfg, headline_rows, mo):
 @app.cell(hide_code=True)
 def _section_figures(mo):
     mo.md(r"""
-    ## 15. Figures
+    ## 12. Figures
 
     The remaining cells regenerate every figure used in the
     conference deck. Each figure function reads the merged baseline
@@ -1009,7 +1092,7 @@ def _section_fig1(mo):
 
     Baseline UTCI at peak hour, mature-scenario UTCI at peak hour,
     and the difference between the two. The cooling is concentrated
-    at the planting sites with limited spillover to neighbouring
+    at the planting sites with limited spillover to neighboring
     cells.
     """)
     return
@@ -1201,7 +1284,7 @@ def _section_fig_validation(mo):
     Open-Meteo reanalysis. Modelled UTCI on grass cells compared
     against the Open-Meteo apparent-temperature product. The HRRR
     forcing tracks the airport observations within roughly 2 °C and
-    modelled UTCI sits a few degrees above the apparent-temperature
+    modeled UTCI sits a few degrees above the apparent-temperature
     product because UTCI accounts for radiation loading.
     """)
     return
@@ -1252,7 +1335,7 @@ def _fig_lc(aoi, cfg, mo):
 @app.cell(hide_code=True)
 def _section_limitations(mo):
     mo.md(r"""
-    ## 16. Limitations
+    ## 13. Limitations
 
     Several caveats should be reported alongside the headline
     numbers.
@@ -1261,7 +1344,7 @@ def _section_limitations(mo):
       the hottest clear-sky day of summer 2025 (June 23), when the
       intervention matters most. Multi-day heatwaves may amplify
       cooling through reduced overnight pavement heat storage under
-      shade, but this effect is not modelled here.
+      shade, but this effect is not modeled here.
     - **One hundred percent planting and survival assumed.** Urban
       street-tree mortality in the first five years is typically 20
       to 40 percent. Realised cooling will be lower than the model
@@ -1271,7 +1354,7 @@ def _section_limitations(mo):
       species variability, leaf-area uncertainty, or MULC
       classification error.
     - **Spatially uniform meteorological forcing.** HRRR is resolved
-      at 3 km and applied uniformly across the one-metre tile. Real
+      at 3 km and applied uniformly across the one-meter tile. Real
       urban canyons have lower wind, real trees transpire, and real
       shaded zones have slightly lower air temperature. All three
       effects would amplify cooling. The model output should be read
@@ -1281,36 +1364,6 @@ def _section_limitations(mo):
     - **No exposure weighting.** Per-pixel cooling is reported.
       Translating to a public-health benefit requires foot-traffic
       data, which is not available.
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _section_citations(mo):
-    mo.md(r"""
-    ## 17. Citations
-
-    - Bröde, P., Fiala, D., Błażejczyk, K., Holmér, I., Jendritzky,
-      G., Kampmann, B., Tinz, B., Havenith, G. (2012). Deriving the
-      operational procedure for the Universal Thermal Climate Index
-      (UTCI). *International Journal of Biometeorology* 56,
-      481–494.
-    - Kamath, H. G., Sudharsan, N., Singh, M., Wallenberg, N.,
-      Lindberg, F., Niyogi, D. (2026). SOLWEIG-GPU: GPU-Accelerated
-      Thermal Comfort Modeling Framework for Urban Digital Twins.
-      *Journal of Open Source Software* 11(118), 9535.
-    - Lindberg, F., Holmer, B., Thorsson, S. (2008). SOLWEIG 1.0 —
-      Modelling spatial variations of 3D radiant fluxes and mean
-      radiant temperature in complex urban settings. *International
-      Journal of Biometeorology* 52, 697–713.
-    - Lindberg, F., Grimmond, C. S. B. (2011). The influence of
-      vegetation and building morphology on shadow patterns and mean
-      radiant temperatures in urban areas. *Theoretical and Applied
-      Climatology* 105, 311–323.
-    - Lindberg, F., Grimmond, C. S. B., Gabey, A., Huang, B., Kent,
-      C. W., Sun, T., et al. (2018). Urban Multi-scale Environmental
-      Predictor (UMEP): An integrated tool for city-based climate
-      services. *Environmental Modelling and Software* 99, 70–87.
     """)
     return
 

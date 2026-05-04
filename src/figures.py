@@ -716,15 +716,6 @@ def fig_landcover_tmrt() -> None:
         ax.text(bar.get_x() + bar.get_width() / 2, m + 1.5,
                 f"{m:.1f} °C\n({c/1e6:.2f} M cells)",
                 ha="center", fontsize=9)
-    grass_mean = next(r[2] for r in rows if r[1] == 5)
-    paved_mean = next(r[2] for r in rows if r[1] == 1)
-    gap = paved_mean - grass_mean
-    ax.annotate(f"{gap:.1f} °C paved-vs-shade gap\n"
-                "= sensitivity ceiling per cell\nfor the planting intervention",
-                xy=(0, paved_mean), xytext=(2.5, paved_mean - 5),
-                fontsize=10, fontweight="bold",
-                arrowprops=dict(arrowstyle="->", color="#d62728", lw=1.5),
-                color="#d62728")
     ax.set_ylabel("Mean Tmrt (°C)")
     ax.set_title(f"Mean radiant temperature at peak hour (15:00 EDT, {SIM_DATE})\n"
                  "by landcover class, Hayti baseline run")
