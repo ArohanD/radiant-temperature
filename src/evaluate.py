@@ -214,10 +214,13 @@ def scenario_headline(prefix: str = OUTPUT_PREFIX, scenario: str = "mature") -> 
         out["planted_dtmrt_min"] = float(dtmrt[planted & valid_t].min())
     if (planted & valid_u).any():
         out["planted_dutci_median"] = float(np.median(dutci[planted & valid_u]))
-        # Heat-stress category crossing rate (UTCI > 38 = very strong, > 46 = extreme)
-        b_extreme = (bu[planted & valid_u] > 38)
-        s_extreme = (su[planted & valid_u] > 38)
-        out["who_category_drop_pct"] = float(100 * (b_extreme & ~s_extreme).mean())
+        # Bröde et al. 2012 UTCI heat-stress category boundaries.
+        # A "category drop" is a planted pixel whose scenario UTCI sits in a
+        # lower heat-stress band than its baseline UTCI.
+        utci_bins = np.array([-40, 9, 26, 32, 38, 46, 90])
+        b_cat = np.digitize(bu[planted & valid_u], utci_bins)
+        s_cat = np.digitize(su[planted & valid_u], utci_bins)
+        out["who_category_drop_pct"] = float(100 * (s_cat < b_cat).mean())
     if (near & valid_t).any():
         out["near_dtmrt_median"] = float(np.median(dtmrt[near & valid_t]))
     return out

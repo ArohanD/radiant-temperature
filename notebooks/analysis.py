@@ -38,7 +38,7 @@ def _intro(mo):
     5. **Analyze** the output: headline statistics, figures, and
        limitations.
 
-    A few practical notes for the reader:
+    A few practical notes:
 
     - The notebook ships with two AOI profiles. **`hayti_demo`** is a
       600 m × 600 m smoke-test box that runs end-to-end in roughly
@@ -75,38 +75,67 @@ def _viz_helpers():
     import rasterio as _rio
     from matplotlib.colors import ListedColormap as _ListedColormap
     from matplotlib.colors import BoundaryNorm as _BoundaryNorm
+    from matplotlib.patches import Patch as _Patch
 
-    _UMEP_PALETTE = {1: "#7d7d7d", 2: "#d62728", 5: "#2ca02c",
-                      6: "#deb887", 7: "#1f77b4"}
-    _UMEP_LABELS = {1: "paved", 2: "building", 5: "grass / under-tree",
-                     6: "bare soil", 7: "water"}
+    _UMEP_PALETTE = {1: "#888888", 2: "#d94731", 5: "#7ec27e",
+                      6: "#c8a778", 7: "#4a90d9"}
+    _UMEP_LABELS = {1: "Paved", 2: "Building", 5: "Grass / under-tree",
+                     6: "Bare soil", 7: "Water"}
+
+    _MULC_PALETTE = {10: "#4a90d9", 20: "#888888", 30: "#c8a778",
+                      40: "#2d8a3e", 52: "#7ec27e", 70: "#c2e09b",
+                      80: "#f0e68c", 91: "#5fa6c8", 92: "#9ec9e0"}
+    _MULC_LABELS = {10: "Water", 20: "Impervious", 30: "Soil / barren",
+                     40: "Trees / forest", 52: "Shrub",
+                     70: "Grass / herbaceous", 80: "Agriculture",
+                     91: "Woody wetland", 92: "Emergent wetland"}
+
+    def _discrete(arr, ax, fig, swatches, labels, missing_msg):
+        codes = sorted(c for c in swatches if _np.any(arr == c))
+        if not codes:
+            ax.text(0.5, 0.5, missing_msg, ha="center", va="center",
+                     transform=ax.transAxes)
+            return
+        cmap_obj = _ListedColormap([swatches[c] for c in codes])
+        bounds = [c - 0.5 for c in codes] + [codes[-1] + 0.5]
+        norm = _BoundaryNorm(bounds, cmap_obj.N)
+        ax.imshow(arr, cmap=cmap_obj, norm=norm, interpolation="nearest")
+        handles = [_Patch(facecolor=swatches[c],
+                            label=f"{c}  {labels.get(c, '?')}")
+                    for c in codes]
+        ax.legend(handles=handles, loc="center left",
+                   bbox_to_anchor=(1.02, 0.5), frameon=False, fontsize=9,
+                   handlelength=1.4, handleheight=1.0, borderpad=0.4)
 
     def show_raster(path, title=None, cmap="viridis", vmin=None, vmax=None,
-                     palette=False, figsize=(6.5, 5.5)):
-        """Render a 1m raster as a matplotlib Figure."""
+                     palette=False, cbar_label=None, figsize=(6.5, 5.5)):
+        """Render a 1 m raster as a matplotlib Figure.
+
+        `palette` accepts:
+          - False (default): continuous colormap with colorbar.
+          - "umep": discrete legend for the 5 UMEP land-cover classes.
+          - "mulc": discrete legend for the 9 EnviroAtlas MULC raw classes.
+
+        `cbar_label` is the units string drawn next to the continuous colorbar
+        (ignored when `palette` is set).
+        """
         with _rio.open(path) as ds:
             arr = ds.read(1).astype("float32")
             nd = ds.nodata
         if nd is not None:
             arr = _np.where(arr == nd, _np.nan, arr)
         fig, ax = _plt.subplots(figsize=figsize)
-        if palette:
-            codes = sorted(c for c in _UMEP_PALETTE if _np.any(arr == c))
-            if not codes:
-                ax.text(0.5, 0.5, "no UMEP-coded cells",
-                         ha="center", va="center", transform=ax.transAxes)
-            else:
-                cmap_obj = _ListedColormap([_UMEP_PALETTE[c] for c in codes])
-                bounds = [c - 0.5 for c in codes] + [codes[-1] + 0.5]
-                norm = _BoundaryNorm(bounds, cmap_obj.N)
-                im = ax.imshow(arr, cmap=cmap_obj, norm=norm,
-                                interpolation="nearest")
-                cbar = fig.colorbar(im, ax=ax, ticks=codes, shrink=0.8)
-                cbar.ax.set_yticklabels(
-                    [f"{c}: {_UMEP_LABELS.get(c, '?')}" for c in codes])
+        if palette == "umep" or palette is True:
+            _discrete(arr, ax, fig, _UMEP_PALETTE, _UMEP_LABELS,
+                       "no UMEP-coded cells")
+        elif palette == "mulc":
+            _discrete(arr, ax, fig, _MULC_PALETTE, _MULC_LABELS,
+                       "no MULC-coded cells")
         else:
             im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax)
-            fig.colorbar(im, ax=ax, shrink=0.8)
+            cbar = fig.colorbar(im, ax=ax, shrink=0.8)
+            if cbar_label:
+                cbar.set_label(cbar_label, fontsize=9)
         ax.set_title(title or path.name, fontsize=10)
         ax.set_xticks([])
         ax.set_yticks([])
@@ -335,6 +364,9 @@ def _fetch_mulc(REPO, cfg, mo):
     import matplotlib.pyplot as _plt
     import pyproj as _pp
     import numpy as _np
+    from matplotlib.colors import ListedColormap as _LC
+    from matplotlib.colors import BoundaryNorm as _BN
+    from matplotlib.patches import Patch as _MP
     with _rio.open(_dst) as _ds:
         _scale = max(_ds.width // 800, _ds.height // 800, 1)
         _arr = _ds.read(1, out_shape=(_ds.height // _scale, _ds.width // _scale))
@@ -344,11 +376,26 @@ def _fetch_mulc(REPO, cfg, mo):
     _x0, _y0, _x1, _y1 = cfg.tile_bbox
     _bx0, _by0 = _trans.transform(_x0, _y0)
     _bx1, _by1 = _trans.transform(_x1, _y1)
-    _fig, _ax = _plt.subplots(figsize=(7, 6))
-    _ax.imshow(_arr, cmap="tab10",
+    _MULC_PALETTE = {10: "#4a90d9", 20: "#888888", 30: "#c8a778",
+                      40: "#2d8a3e", 52: "#7ec27e", 70: "#c2e09b",
+                      80: "#f0e68c", 91: "#5fa6c8", 92: "#9ec9e0"}
+    _MULC_LABELS = {10: "Water", 20: "Impervious", 30: "Soil / barren",
+                     40: "Trees / forest", 52: "Shrub",
+                     70: "Grass / herbaceous", 80: "Agriculture",
+                     91: "Woody wetland", 92: "Emergent wetland"}
+    _present = sorted(c for c in _MULC_PALETTE if (_arr == c).any())
+    _cmap = _LC([_MULC_PALETTE[c] for c in _present])
+    _norm = _BN([c - 0.5 for c in _present] + [_present[-1] + 0.5], _cmap.N)
+    _fig, _ax = _plt.subplots(figsize=(8, 6))
+    _ax.imshow(_arr, cmap=_cmap, norm=_norm, interpolation="nearest",
                 extent=[_bounds.left, _bounds.right, _bounds.bottom, _bounds.top])
     _ax.add_patch(_plt.Rectangle((_bx0, _by0), _bx1 - _bx0, _by1 - _by0,
                                     fill=False, edgecolor="red", linewidth=2))
+    _handles = [_MP(facecolor=_MULC_PALETTE[c],
+                      label=f"{c}  {_MULC_LABELS[c]}") for c in _present]
+    _ax.legend(handles=_handles, loc="center left",
+                bbox_to_anchor=(1.02, 0.5), frameon=False, fontsize=9,
+                handlelength=1.4, handleheight=1.0, borderpad=0.4)
     _ax.set_title(f"DNC_MULC.tif (city-wide, {_scale}× downsampled; "
                   f"red box = {cfg.name} AOI)", fontsize=10)
     _ax.set_xlabel(_crs_src + " easting"); _ax.set_ylabel("northing")
@@ -565,6 +612,7 @@ def _lidar_dsm(REPO, cfg, mo, show_raster):
         lidar_dsm_path,
         title="Building_DSM.preMS.tif — raw LiDAR first-returns",
         cmap="terrain",
+        cbar_label="elevation (m, geoid18)",
     )
     mo.vstack([lidar_dsm_caption, lidar_dsm_fig])
     return (lidar_dsm_path,)
@@ -594,7 +642,8 @@ def _dem(REPO, cfg, mo, show_raster):
         build_dem(cfg.processing_bbox, dem_path)
     dem_caption = mo.md(f"`{dem_path.relative_to(REPO)}`")
     dem_fig = show_raster(dem_path, title="DEM.tif — bare-earth terrain",
-                            cmap="terrain")
+                            cmap="terrain",
+                            cbar_label="elevation (m, geoid18)")
     mo.vstack([dem_caption, dem_fig])
     return (dem_path,)
 
@@ -622,7 +671,7 @@ def _landcover_raw(REPO, cfg, mo, show_raster):
     lc_raw_caption = mo.md(f"`{landcover_raw_path.relative_to(REPO)}`")
     lc_raw_fig = show_raster(landcover_raw_path,
                                 title="MULC_aligned.tif — EnviroAtlas land cover (raw classes)",
-                                cmap="tab10")
+                                palette="mulc")
     mo.vstack([lc_raw_caption, lc_raw_fig])
     return (landcover_raw_path,)
 
@@ -667,10 +716,11 @@ def _trees_and_lc(
     )
     trees_fig = show_raster(trees_path,
                               title="Trees.tif — canopy heights (m)",
-                              cmap="Greens", vmin=0)
+                              cmap="YlGn", vmin=0, vmax=25,
+                              cbar_label="canopy height above ground (m)")
     lc_pre_fig = show_raster(lc_pre_path,
                                title="Landcover.preMS.tif — UMEP classes (pre-Overture)",
-                               palette=True)
+                               palette="umep")
     mo.vstack([trees_caption, mo.hstack([trees_fig, lc_pre_fig])])
     return
 
@@ -709,11 +759,12 @@ def _patch(cfg, mo, overture_path, show_raster):
         cfg.baseline_dir / "Building_DSM.tif",
         title="Building_DSM.tif — patched (ground + buildings)",
         cmap="terrain",
+        cbar_label="elevation (m, geoid18)",
     )
     patched_lc_fig = show_raster(
         cfg.baseline_dir / "Landcover.tif",
         title="Landcover.tif — patched (Overture buildings = class 2)",
-        palette=True,
+        palette="umep",
     )
     mo.vstack([patch_table, mo.hstack([patched_dsm_fig, patched_lc_fig])])
     return
@@ -765,8 +816,8 @@ def _section_preflight(mo):
     ### 8a. Pre-flight check
 
     SOLWEIG needs the four canonical rasters and the own-met file.
-    Sections 4 and 7-9 produce them. The cell below confirms they are
-    in place.
+    Section 4 produces the own-met file; sections 6-7 produce the
+    rasters. The cell below confirms they are in place.
     """)
     return
 
@@ -779,7 +830,7 @@ def _preflight(cfg, mo):
     if missing_inputs:
         preflight_md = mo.md(
             f"**Missing inputs:** {missing_inputs}. "
-            f"Re-run sections 3, 4, and 6-7 above."
+            f"Re-run sections 3-7 above."
         ).callout(kind="danger")
     else:
         preflight_md = mo.md("All baseline inputs present.").callout(kind="success")
@@ -939,27 +990,26 @@ def _section_final_inspector(mo):
     mo.md(r"""
     ## 10. Interactive map inspector
 
-    The full-fidelity view of the analysis is a self-contained MapLibre
-    web app written to `inputs/processed/{aoi}_baseline/web/`. It
-    carries every layer the analysis produces: raw and patched DSM,
-    the two scenario canopy disks as 3D extrusions, the baseline TMRT
-    and UTCI fields at peak hour, and the peak-hour cooling rasters
-    (ΔTmrt and ΔUTCI) for both scenarios. Layer visibility, opacity,
-    pitch, and rotation are all controllable from the panel on the
-    left, and hover reveals per-pixel raster values.
+    A small static MapLibre bundle is written to
+    `inputs/processed/{aoi}_baseline/web/`. It places two raster
+    overlays on top of an OpenStreetMap basemap — baseline mean
+    radiant temperature at peak hour and ΔUTCI for the mature
+    scenario — together with the AOI footprint and the planted-site
+    points as toggleable vector layers. The bundle is fully static
+    (one `index.html`, two PNG overlays, two GeoJSONs) and does not
+    require Python at view time.
 
-    The inspector lives outside the notebook because it embeds a
-    MapLibre runtime and is a few hundred KB of JavaScript. The cell
-    below builds the bundle (idempotent — skips when up to date). To
-    view it, start a static HTTP server **from the repo root**:
+    The cell below regenerates the diff GeoTIFFs and rebuilds the
+    bundle (idempotent — overwrites in place). To view it, start a
+    static HTTP server **from the repo root**:
 
     ```bash
     python -m http.server 8765 --directory inputs/processed/hayti_demo_baseline/web
     ```
 
-    Then open <http://localhost:8765/> in any browser. (Swap
-    `hayti_demo_baseline` for `durham_hayti_baseline` if running on
-    the production AOI.)
+    Then open <http://localhost:8765/> in any browser. Swap
+    `hayti_demo_baseline` for `durham_hayti_baseline` when running on
+    the production AOI.
     """)
     return
 
@@ -989,15 +1039,12 @@ def _section_headline(mo):
 
     Translating SOLWEIG's pixel-level output into decision-relevant
     statistics requires careful framing. Cooling is large at the
-    planted spots (around −18 to −21 °C ΔTmrt and −4.7 to −5.8 °C
-    ΔUTCI on the Hayti production run) but imperceptible when
-    averaged over the neighborhood (−0.01 °C tile-wide). The
+    planted spots (around −5 to −6 °C ΔUTCI in both AOIs) but
+    imperceptible when averaged over the entire neighborhood
+    (−0.01 °C tile-wide on the production run). The
     local-versus-neighborhood distinction is essential to
     communicate honestly: the planting program reduces heat stress
     at the sites themselves, not across the entire neighborhood.
-    Roughly 58 percent of planted pixels in the Hayti production run
-    cross at least one World Health Organization heat-stress
-    category, typically from extreme to very strong heat stress.
 
     For each scenario the cell below reports:
 
@@ -1014,12 +1061,14 @@ def _section_headline(mo):
     - **Worst ΔTmrt.** The single coldest pixel modified by the
       planting, typically a cell where multiple disks overlap.
     - **WHO category drop rate.** The fraction of planted pixels that
-      cross from extreme heat stress (UTCI > 38 °C) to a lower
-      category at peak hour.
+      shift down at least one Bröde et al. 2012 UTCI heat-stress
+      category at peak hour (extreme → very strong, very strong →
+      strong, etc.).
 
-    The headline figures from the Hayti production run are −4.66 °C
-    and −5.80 °C ΔUTCI for the year 10 and mature scenarios
-    respectively.
+    The headline figures from the `durham_hayti` production run are
+    −4.66 °C and −5.80 °C ΔUTCI for the year 10 and mature scenarios
+    respectively, with about 58 percent of planted pixels crossing
+    at least one heat-stress category.
     """)
     return
 
@@ -1309,11 +1358,11 @@ def _section_fig_lc(mo):
     mo.md(r"""
     ### Tmrt by land cover class
 
-    Distribution of peak-hour Tmrt grouped by UMEP land cover class.
-    Paved cells reach the highest values, water cells the lowest,
-    and vegetated cells fall between. The roughly 19 °C gap between
-    paved and vegetated cells is the physical ceiling for the
-    intervention's cooling effect.
+    Mean peak-hour Tmrt grouped by UMEP land cover class. Paved
+    cells reach the highest values, water cells the lowest, and
+    vegetated cells fall between. The gap between paved and
+    vegetated cells (around 19 °C on the production AOI) is the
+    physical ceiling for the intervention's per-cell cooling effect.
     """)
     return
 
