@@ -195,7 +195,8 @@ def fig_study_site() -> None:
                s=3, c="#1b7837", alpha=0.85,
                label=f"Planned plantings (n={len(planting_only):,})")
     aoi_box_ll = tile_box.to_crs("EPSG:4326")
-    ax.plot(*aoi_box_ll.iloc[0].exterior.xy, color="#d62728", lw=2.5, label="Hayti AOI")
+    ax.plot(*aoi_box_ll.iloc[0].exterior.xy, color="#d62728", lw=2.5,
+             label=f"{AOI_NAME} AOI")
     ax.set_aspect("equal")
     ax.set_xlim(-79.00, -78.80)
     ax.set_ylim(35.92, 36.07)
@@ -205,18 +206,24 @@ def fig_study_site() -> None:
     ax.legend(loc="lower left", fontsize=9, framealpha=0.95)
     ax.grid(True, alpha=0.2)
 
-    # ----- right: zoom onto the densest planting cluster within the AOI
+    # ----- right: zoom onto the densest planting cluster within the AOI.
+    # If the AOI is small enough to fit in the zoom window, just show the
+    # full AOI (the cluster is the AOI).
     ax = axes[1]
     planting_in = planting_only.clip(tile_box.iloc[0])
 
-    # density-based zoom: center on the densest 800m window, but clamp to AOI
     win_m = 800.0
-    cx, cy = _densest_cluster_center(planting_in, win_m=win_m)
-    half = win_m / 2
-    zx_min = max(xmin, cx - half)
-    zx_max = min(xmax, cx + half)
-    zy_min = max(ymin, cy - half)
-    zy_max = min(ymax, cy + half)
+    if min(xmax - xmin, ymax - ymin) <= win_m:
+        zx_min, zx_max, zy_min, zy_max = xmin, xmax, ymin, ymax
+        cluster_zoomed = False
+    else:
+        cx, cy = _densest_cluster_center(planting_in, win_m=win_m)
+        half = win_m / 2
+        zx_min = max(xmin, cx - half)
+        zx_max = min(xmax, cx + half)
+        zy_min = max(ymin, cy - half)
+        zy_max = min(ymax, cy + half)
+        cluster_zoomed = True
 
     zoom_box = gpd.GeoSeries.from_wkt([
         f"POLYGON(({zx_min} {zy_min},{zx_max} {zy_min},{zx_max} {zy_max},"
@@ -228,9 +235,13 @@ def fig_study_site() -> None:
     in_zoom_mask = ((planting_in.geometry.x >= zx_min) & (planting_in.geometry.x <= zx_max)
                     & (planting_in.geometry.y >= zy_min) & (planting_in.geometry.y <= zy_max))
     n_in_zoom = int(in_zoom_mask.sum())
+    if cluster_zoomed:
+        sc_label = f"{n_in_zoom} of {len(planting_in)} plantings in this zoom"
+    else:
+        sc_label = f"{n_in_zoom} plantings in AOI"
     ax.scatter(planting_in.geometry.x, planting_in.geometry.y,
                s=22, c="#1b7837", edgecolors="black", lw=0.4, zorder=3,
-               label=f"{n_in_zoom} of {len(planting_in)} plantings in this zoom")
+               label=sc_label)
     ax.set_aspect("equal")
     ax.set_xlim(zx_min, zx_max)
     ax.set_ylim(zy_min, zy_max)
@@ -247,9 +258,16 @@ def fig_study_site() -> None:
         axis.set_major_formatter(fmt)
     span_km_x = (zx_max - zx_min) / 1000.0
     span_km_y = (zy_max - zy_min) / 1000.0
-    ax.set_title(f"Densest planting cluster within Hayti AOI "
-                 f"({span_km_x:.1f} × {span_km_y:.1f} km zoom, EPSG:32617)\n"
-                 f"Full AOI is 2 km × 2 km. Durham Freeway crosses N edge.")
+    if cluster_zoomed:
+        ax.set_title(f"Densest planting cluster within {AOI_NAME} AOI "
+                      f"({span_km_x:.1f} × {span_km_y:.1f} km zoom, "
+                      f"EPSG:32617)\n"
+                      f"Full AOI is {AOI_SIZE_KM:g} km × {AOI_SIZE_KM:g} km. "
+                      f"Durham Freeway crosses N edge.")
+    else:
+        ax.set_title(f"{AOI_NAME} AOI "
+                      f"({span_km_x:.1f} × {span_km_y:.1f} km, EPSG:32617)\n"
+                      f"Building footprints from Overture Maps.")
     ax.legend(loc="lower left", fontsize=9, framealpha=0.95)
     _add_scalebar(ax, 200, location="lower right")
 
@@ -324,8 +342,9 @@ def fig_data_panels() -> None:
     handles = [Patch(facecolor=UMEP_COLORS[c], label=UMEP_LABELS[c]) for c in classes]
     ax.legend(handles=handles, loc="lower left", fontsize=8, framealpha=0.95)
 
-    plt.suptitle(f"SOLWEIG inputs: {AOI_NAME} (2 km × 2 km @ 1 m, EPSG:32617)",
-                 fontsize=14, fontweight="bold", y=1.0)
+    plt.suptitle(f"SOLWEIG inputs: {AOI_NAME} "
+                  f"({AOI_SIZE_KM:g} km × {AOI_SIZE_KM:g} km @ 1 m, EPSG:32617)",
+                  fontsize=14, fontweight="bold", y=1.0)
     plt.tight_layout()
     out = OUT / "data_panels.png"
     plt.savefig(out, dpi=DPI, bbox_inches="tight", facecolor="white")
@@ -464,7 +483,7 @@ def fig_landcover_utci() -> None:
 
     ax.set_ylabel("Mean UTCI 'feels-like' temperature (°C)")
     ax.set_title(f"What the day feels like: UTCI by landcover at 15:00 EDT, {SIM_DATE}\n"
-                 f"Hayti baseline · heat-stress categories shaded behind bars")
+                  f"{AOI_NAME} baseline · heat-stress categories shaded behind bars")
     ax.set_ylim(20, 55)
     ax.grid(axis="y", alpha=0.3, zorder=2)
     plt.tight_layout()
@@ -500,6 +519,27 @@ def _densest_cluster_center(planting: "gpd.GeoDataFrame", win_m: float = 600.0):
     return best[1]
 
 
+def _median_at_planted_pixels(diff_full: np.ndarray,
+                                planting: "gpd.GeoDataFrame",
+                                bounds) -> float:
+    """Median ΔUTCI at the 1-m pixels covered by the planting points.
+    `diff_full` is the AOI-sized diff array (with buildings already masked
+    to NaN); `bounds` is its rasterio bounds. Returns NaN if no plantings."""
+    if len(planting) == 0:
+        return float("nan")
+    xs = planting.geometry.x.values
+    ys = planting.geometry.y.values
+    cols = np.floor(xs - bounds.left).astype(int)
+    rows = np.floor(bounds.top - ys).astype(int)
+    H, W = diff_full.shape
+    keep = (cols >= 0) & (cols < W) & (rows >= 0) & (rows < H)
+    if not keep.any():
+        return float("nan")
+    vals = diff_full[rows[keep], cols[keep]]
+    vals = vals[np.isfinite(vals)]
+    return float(np.median(vals)) if vals.size else float("nan")
+
+
 def fig_utci_three_panel() -> None:
     """Three-panel zoomed money shot: Baseline UTCI | Mature UTCI | ΔUTCI, all
     cropped to a 700 m × 700 m window around the densest planting cluster so the
@@ -532,11 +572,22 @@ def fig_utci_three_panel() -> None:
     ], crs="EPSG:32617").iloc[0]
     planting = planting.clip(box)
 
-    # Pick zoom window around the densest 700m square of plantings
+    # Pick zoom window. For AOIs larger than ~700 m, zoom into the densest
+    # 700 m planting cluster so pixel-scale cooling is visible at slide size.
+    # For AOIs at or below that size (e.g. hayti_demo at 600 m), the AOI is
+    # already the cluster — show the full tile.
     ZOOM_M = 700.0
-    cx, cy = _densest_cluster_center(planting, win_m=ZOOM_M)
-    half = ZOOM_M / 2
-    zx0, zy0, zx1, zy1 = cx - half, cy - half, cx + half, cy + half
+    aoi_w = xmax - xmin
+    aoi_h = ymax - ymin
+    if min(aoi_w, aoi_h) <= ZOOM_M:
+        zx0, zy0, zx1, zy1 = xmin, ymin, xmax, ymax
+        ZOOM_M = float(min(aoi_w, aoi_h))
+        zoomed = False
+    else:
+        cx, cy = _densest_cluster_center(planting, win_m=ZOOM_M)
+        half = ZOOM_M / 2
+        zx0, zy0, zx1, zy1 = cx - half, cy - half, cx + half, cy + half
+        zoomed = True
     # crop arrays to zoom window (1m grid: pixel = meter from raster bounds)
     px0 = int(zx0 - bounds.left)
     px1 = int(zx1 - bounds.left)
@@ -592,8 +643,11 @@ def fig_utci_three_panel() -> None:
     norm = mcolors.TwoSlopeNorm(vmin=-vlim, vcenter=0, vmax=vlim)
     im2 = axes[2].imshow(diff_z, cmap="RdBu_r", norm=norm, extent=extent_z)
     n_zoom = len(planting_z)
+    median_planted = _median_at_planted_pixels(diff_d, planting_z, bounds)
+    median_str = (f"{median_planted:+.1f} °C"
+                   if np.isfinite(median_planted) else "n/a")
     axes[2].set_title(
-        f"ΔUTCI (mature − baseline)  ·  median at planted pixels ≈ −5.8 °C",
+        f"ΔUTCI (mature − baseline)  ·  median at planted pixels ≈ {median_str}",
         fontsize=12, fontweight="bold")
     fig.colorbar(im2, ax=axes[2], label="ΔUTCI (°C)", shrink=0.78)
 
@@ -613,9 +667,14 @@ def fig_utci_three_panel() -> None:
         ax.set_xticks([]); ax.set_yticks([])
         ax.set_aspect("equal")
 
-    fig.suptitle(
-        f"What 245 planned trees do at peak heat: densest cluster, {int(ZOOM_M)} m × {int(ZOOM_M)} m view",
-        fontsize=14, fontweight="bold", y=1.04)
+    n_in_aoi = len(planting)
+    if zoomed:
+        title = (f"What {n_in_aoi} planned trees do at peak heat: "
+                  f"densest cluster, {int(ZOOM_M)} m × {int(ZOOM_M)} m view")
+    else:
+        title = (f"What {n_in_aoi} planned trees do at peak heat: "
+                  f"{AOI_NAME} AOI ({int(ZOOM_M)} m × {int(ZOOM_M)} m)")
+    fig.suptitle(title, fontsize=14, fontweight="bold", y=1.04)
     out = OUT / "fig1_utci_three_panel_mature.png"
     plt.savefig(out, dpi=DPI, bbox_inches="tight", facecolor="white")
     plt.close()
@@ -718,7 +777,7 @@ def fig_landcover_tmrt() -> None:
                 ha="center", fontsize=9)
     ax.set_ylabel("Mean Tmrt (°C)")
     ax.set_title(f"Mean radiant temperature at peak hour (15:00 EDT, {SIM_DATE})\n"
-                 "by landcover class, Hayti baseline run")
+                  f"by landcover class, {AOI_NAME} baseline run")
     ax.set_ylim(0, max(means) + 12)
     ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()

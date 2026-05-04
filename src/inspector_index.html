@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Inspector — __AOI_NAME__</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, sans-serif; }
+  #map { position: absolute; inset: 0; }
+  #panel {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(255, 255, 255, 0.92); padding: 12px 14px;
+    border-radius: 6px; max-width: 320px; font-size: 13px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2); z-index: 10;
+  }
+  #panel h1 { margin: 0 0 6px; font-size: 15px; }
+  #panel .hint { color: #555; font-size: 12px; }
+  #panel label { display: block; margin: 4px 0; cursor: pointer; }
+  #panel input[type=range] { width: 100%; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 10px 0; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>Inspector — __AOI_NAME__</h1>
+  <div class="hint">Drag to pan. Scroll to zoom. Toggle layers below.</div>
+  <hr />
+  <div id="layers"></div>
+  <hr />
+  <label>Raster opacity <input type="range" id="opacity" min="0" max="100" value="80" /></label>
+</div>
+<script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+<script>
+const LAYERS = __LAYERS_JSON__;
+const HAS_PLANTED = __HAS_PLANTED__;
+const CENTER = [__CENTER_LON__, __CENTER_LAT__];
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap contributors",
+      },
+    },
+    layers: [{ id: "osm", type: "raster", source: "osm" }],
+  },
+  center: CENTER,
+  zoom: 14,
+});
+
+map.addControl(new maplibregl.NavigationControl());
+
+map.on("load", () => {
+  // AOI footprint
+  fetch("aoi.geojson")
+    .then((r) => r.json())
+    .then((data) => {
+      map.addSource("aoi", { type: "geojson", data });
+      map.addLayer({
+        id: "aoi-line", type: "line", source: "aoi",
+        paint: { "line-color": "#d62728", "line-width": 2 },
+      });
+    });
+
+  // Planted-site points
+  if (HAS_PLANTED) {
+    fetch("planted_sites.geojson")
+      .then((r) => r.json())
+      .then((data) => {
+        map.addSource("planted", { type: "geojson", data });
+        map.addLayer({
+          id: "planted-pts", type: "circle", source: "planted",
+          paint: {
+            "circle-radius": 3,
+            "circle-color": "#2ca02c",
+            "circle-opacity": 0.8,
+            "circle-stroke-width": 0.5,
+            "circle-stroke-color": "#1b5e20",
+          },
+        });
+      });
+  }
+
+  // Raster overlays
+  LAYERS.forEach((layer) => {
+    map.addSource(layer.id, {
+      type: "image", url: layer.url, coordinates: layer.coords,
+    });
+    map.addLayer({
+      id: layer.id, type: "raster", source: layer.id,
+      paint: { "raster-opacity": 0.8 },
+      layout: { visibility: layer.visible ? "visible" : "none" },
+    });
+  });
+
+  buildLayerToggles();
+});
+
+function buildLayerToggles() {
+  const container = document.getElementById("layers");
+  // Vector layers
+  container.insertAdjacentHTML(
+    "beforeend",
+    `<label><input type="checkbox" data-id="aoi-line" checked /> AOI footprint</label>`
+  );
+  if (HAS_PLANTED) {
+    container.insertAdjacentHTML(
+      "beforeend",
+      `<label><input type="checkbox" data-id="planted-pts" checked /> Planted sites</label>`
+    );
+  }
+  // Raster layers
+  LAYERS.forEach((layer) => {
+    const checked = layer.visible ? "checked" : "";
+    container.insertAdjacentHTML(
+      "beforeend",
+      `<label><input type="checkbox" data-id="${layer.id}" ${checked} /> ${layer.label}</label>`
+    );
+  });
+  container.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const layerId = cb.dataset.id;
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(
+          layerId, "visibility", cb.checked ? "visible" : "none"
+        );
+      }
+    });
+  });
+}
+
+document.getElementById("opacity").addEventListener("input", (e) => {
+  const opacity = +e.target.value / 100;
+  LAYERS.forEach((layer) => {
+    if (map.getLayer(layer.id)) {
+      map.setPaintProperty(layer.id, "raster-opacity", opacity);
+    }
+  });
+});
+</script>
+</body>
+</html>
