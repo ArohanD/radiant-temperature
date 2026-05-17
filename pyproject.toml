@@ -1,0 +1,34 @@
+[project]
+name = "radiant-temperature"
+version = "0.1.0"
+description = "Pedestrian heat impact analysis of Durham's 2025-2028 street tree planting program in Hayti"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy<2",
+    "rasterio",
+    "geopandas",
+    "shapely",
+    "pyproj",
+    "xarray",
+    "zarr",
+    "pillow",
+    "matplotlib",
+    "timezonefinder",
+    "pdal>=3,<4",
+    "torch",
+    "solweig-gpu",
+    "dynamical-catalog",
+    "overturemaps",
+    "marimo",
+]
+
+[tool.uv]
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
